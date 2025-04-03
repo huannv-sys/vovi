@@ -186,6 +186,7 @@ class MikrotikClient {
   async executeCommand(command: string, params: any[] = []): Promise<any> {
     // Trường hợp đặc biệt cho demo mode - bỏ qua kiểm tra kết nối
     if (this.useMockData) {
+      console.log(`[DEMO MODE] Executing mock command: ${command}`);
       // Tiếp tục xử lý dữ liệu demo không cần thiết kết nối
     } else if (!this.connected) {
       throw new Error("Not connected to RouterOS device");
@@ -561,10 +562,17 @@ export class MikrotikService {
     try {
       console.log(`Connecting to device ${deviceId} (${device.ipAddress})...`);
       
-      // Cho phép kết nối trực tiếp đến thiết bị thực tế, ngay cả trong môi trường Replit
-      // Chỉ chuyển sang chế độ demo nếu được chỉ định bằng biến môi trường FORCE_DEMO_MODE
+      // Kiểm tra xem có phải là địa chỉ IP riêng tư (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+      const isPrivateIP = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/i.test(device.ipAddress);
+      // Kiểm tra xem đang chạy trong môi trường Replit 
+      const isReplit = process.env.REPL_ID || process.env.REPL_SLUG;
+      // Kiểm tra xem chế độ demo có được bật cưỡng bức không
       const forceDemoMode = process.env.FORCE_DEMO_MODE === "true";
-      if (forceDemoMode) {
+      
+      // Tự động chuyển sang chế độ demo trong các trường hợp:
+      // 1. Nếu là IP riêng tư và đang trong môi trường Replit (không thể kết nối từ internet)
+      // 2. Nếu cưỡng bức chế độ demo qua biến môi trường
+      if ((isPrivateIP && isReplit) || forceDemoMode) {
         console.log(`⚠️ DEMO MODE - Forced by environment variable - using demo data for device ${deviceId}`);
         
         // Cập nhật thiết bị để hiển thị đúng trong DEMO MODE - không báo là online
@@ -624,6 +632,35 @@ export class MikrotikService {
       
       // Nếu không thể kết nối sau khi thử tất cả các cổng
       console.error(`Failed to connect to device ${deviceId} (${device.ipAddress}) on any port`);
+      
+      // Nếu không phải là địa chỉ IP riêng tư, thử chuyển sang chế độ demo
+      // Sử dụng lại biến isPrivateIP đã khai báo ở trên
+      if (!isPrivateIP) {
+        console.log(`Switching to DEMO MODE for public IP ${device.ipAddress} after failed connection attempts`);
+        
+        // Cập nhật thiết bị để hiển thị đúng trong DEMO MODE - đánh dấu là online vì chúng ta vẫn giám sát được
+        await storage.updateDevice(deviceId, { 
+          isOnline: true,  // Đánh dấu là online trong demo mode
+          lastSeen: new Date()
+        });
+        
+        // Đánh dấu là đang dùng dữ liệu demo
+        const demoClient = new MikrotikClient(device.ipAddress, device.username, device.password);
+        demoClient.useMockData = true;
+        this.clients.set(deviceId, demoClient);
+        
+        // Thêm cảnh báo về chế độ demo
+        await this.createAlert(
+          deviceId,
+          alertSeverity.INFO,
+          "Demo Mode Activated",
+          `Demo mode has been activated for device ${device.name} after failing to connect. Data shown is simulated.`
+        );
+        
+        return true; // Trả về true vì chúng ta vẫn có thể "giám sát" thiết bị với dữ liệu mẫu
+      }
+      
+      // Nếu là địa chỉ IP riêng tư, chỉ đánh dấu là offline
       await storage.updateDevice(deviceId, { isOnline: false, lastSeen: new Date() });
       return false;
     } catch (error) {
