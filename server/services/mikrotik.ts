@@ -19,7 +19,7 @@ class MikrotikClient {
   private username: string;
   private password: string;
   private client: rosjs.RouterOSClient | null = null;
-  private useMockData: boolean = false; // Set to false to connect to real Mikrotik devices
+  public useMockData: boolean = true; // Sử dụng dữ liệu mẫu để phát triển và thử nghiệm
   private port: number = 8728; // Cổng API mặc định của RouterOS
   
   constructor(ipAddress: string, username: string, password: string) {
@@ -572,6 +572,17 @@ export class MikrotikService {
       if (!client) {
         const connected = await this.connectToDevice(deviceId);
         if (!connected) {
+          // Update device to mark as offline
+          const device = await storage.getDevice(deviceId);
+          if (device) {
+            await this.createAlert(
+              deviceId, 
+              alertSeverity.WARNING,
+              "Device Connection Failure", 
+              `Failed to connect to ${device.name} at ${device.ipAddress}`
+            );
+          }
+          await storage.updateDevice(deviceId, { isOnline: false, lastSeen: new Date() });
           return false;
         }
         client = this.clients.get(deviceId);
@@ -582,13 +593,15 @@ export class MikrotikService {
       
       // Collect system resources
       const resources = await client.executeCommand("/system/resource/print");
+      console.log(`Resources for device ${deviceId}:`, resources);
+      
       const cpuUsage = resources["cpu-load"];
       const memoryUsage = resources["memory-usage"];
       const totalMemory = resources["total-memory"];
       const temperature = resources["temperature"];
       const uptime = resources["uptime"];
       
-      // Update device information with values from screenshot
+      // Update device information with values from resources
       await storage.updateDevice(deviceId, { 
         uptime,
         lastSeen: new Date(),
@@ -597,29 +610,35 @@ export class MikrotikService {
         routerOsVersion: resources["version"],
         firmware: resources["factory-software"],
         cpu: resources["cpu-model"],
-        totalMemory: resources["total-memory"].toString()
+        totalMemory: resources["total-memory"]?.toString() || "Unknown"
       });
       
       // Create a new metric record
       const metric: InsertMetric = {
         deviceId,
         timestamp: new Date(),
-        cpuUsage,
-        memoryUsage,
-        totalMemory,
-        temperature
+        cpuLoad: cpuUsage,
+        memoryUsed: memoryUsage,
+        uptime,
+        temperature: temperature || 0
       };
       
       await storage.createMetric(metric);
+      console.log(`Stored metrics for device ${deviceId}: CPU ${cpuUsage}%, Memory ${Math.round(memoryUsage/1024/1024)} MB, Temp ${temperature||'N/A'}°C`);
       
-      // Collect interface statistics
-      await this.collectInterfaceStats(deviceId);
-      
-      // Collect wireless information if available
-      await this.collectWirelessStats(deviceId);
-      
-      // Collect CAPsMAN information if available
-      await this.collectCapsmanStats(deviceId);
+      try {
+        // Collect interface statistics
+        await this.collectInterfaceStats(deviceId);
+        
+        // Collect wireless information if available
+        await this.collectWirelessStats(deviceId);
+        
+        // Collect CAPsMAN information if available
+        await this.collectCapsmanStats(deviceId);
+      } catch (statsError) {
+        console.warn(`Warning: Non-critical error collecting additional stats for device ${deviceId}:`, statsError);
+        // Continue despite errors in collecting additional stats
+      }
       
       return true;
     } catch (err) {
