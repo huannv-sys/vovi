@@ -1,0 +1,35 @@
+huannv@huannv:~/MikrotikMonitor$ sudo ./fix_pm2_port.sh
+
+╔════════════════════════════════════════════════════════════╗
+║            MIKROTIK MONITORING PM2 PORT FIX                ║
+║       Sửa lỗi PM2 không khởi động ứng dụng đúng cách       ║
+╚════════════════════════════════════════════════════════════╝
+
+[2025-04-04 00:27:29] Kiểm tra PM2 logs để tìm lỗi...
+
+=== THÔNG TIN PM2 STATUS ===
+┌────┬────────────────────┬──────────┬──────┬───────────┬──────────┬──────────┐
+│ id │ name               │ mode     │ ↺    │ status    │ cpu      │ memory   │
+├────┼────────────────────┼──────────┼──────┼───────────┼──────────┼──────────┤
+│ 0  │ mikrotik-monitor   │ fork     │ 2    │ online    │ 0%       │ 50.1mb   │
+└────┴────────────────────┴──────────┴──────┴───────────┴──────────┴──────────┘
+
+=== THÔNG TIN PM2 LOGS ===
+[TAILING] Tailing last 20 lines for [mikrotik-monitor] process (change the value with --lines option)
+/root/.pm2/logs/mikrotik-monitor-out.log last 20 lines:
+/root/.pm2/logs/mikrotik-monitor-error.log last 20 lines:
+0|mikrotik | ReferenceError: require is not defined in ES module scope, you can use import instead
+0|mikrotik | This file is being treated as an ES module because it has a '.js' file extension and '/opt/mikrotik-monitoring/package.json' contains "type": "module". To treat it as a CommonJS script, rename it to use the '.cjs' file extension.
+0|mikrotik |     at file:///opt/mikrotik-monitoring/start.js:1:18
+0|mikrotik |     at ModuleJob.run (node:internal/modules/esm/module_job:263:25)
+0|mikrotik |     at async ModuleLoader.import (node:internal/modules/esm/loader:540:24)
+0|mikrotik | ReferenceError: require is not defined in ES module scope, you can use import instead
+0|mikrotik | This file is being treated as an ES module because it has a '.js' file extension and '/opt/mikrotik-monitoring/package.json' contains "type": "module". To treat it as a CommonJS script, rename it to use the '.cjs' file extension.
+0|mikrotik |     at file:///opt/mikrotik-monitoring/start.js:1:18
+0|mikrotik |     at ModuleJob.run (node:internal/modules/esm/module_job:263:25)
+0|mikrotik |     at async ModuleLoader.import (node:internal/modules/esm/loader:540:24)
+0|mikrotik | ReferenceError: require is not defined in ES module scope, you can use import instead
+0|mikrotik | This file is being treated as an ES module because it has a '.js' file extension and '/opt/mikrotik-monitoring/package.json' contains "type": "module". To treat it as a CommonJS script, rename it to use the '.cjs' file extension.
+0|mikrotik |     at file:///opt/mikrotik-monitoring/start.js:1:18
+0|mikrotik |     at ModuleJob.run (node:internal/modules/esm/module_job:263:25)
+0|mikrotik |     at async ModuleLoader.import (node:internal/modules/esm/loader:540:24)
