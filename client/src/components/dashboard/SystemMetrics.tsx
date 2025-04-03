@@ -25,17 +25,37 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
     enabled: !!deviceId,
   });
 
-  // Fetch metrics data with higher refresh rate
+  // Fetch metrics data with higher refresh rate - sửa đường dẫn API
+  const metricsEndpoint = deviceId ? `/api/devices/${deviceId}/metrics` : null;
+  
   const { data: metrics, isLoading } = useQuery<Metric[]>({ 
-    queryKey: deviceId ? ['/api/devices', deviceId, 'metrics'] : ['empty'],
+    queryKey: metricsEndpoint ? [metricsEndpoint] : ['empty'],
     enabled: !!deviceId,
     refetchInterval: 3000, // Refresh every 3 seconds to get latest data in near real-time
   });
+  
+  useEffect(() => {
+    if (metrics && metrics.length > 0) {
+      // Log metrics để debug
+      console.log("Nhận được metrics:", metrics.length);
+      console.log("Mẫu dữ liệu đầu tiên:", JSON.stringify(metrics[0]));
+    }
+  }, [metrics]);
 
   // Get latest metric
   const latestMetric = metrics && metrics.length > 0 
     ? [...metrics].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0] 
     : null;
+    
+  useEffect(() => {
+    if (latestMetric) {
+      // Log metric mới nhất để debug
+      console.log("Metric mới nhất:", JSON.stringify(latestMetric));
+      console.log("CPU Usage:", latestMetric.cpuUsage);
+      console.log("Memory Usage:", latestMetric.memoryUsage);
+      console.log("Temperature:", latestMetric.temperature);
+    }
+  }, [latestMetric]);
 
   // Prepare chart data for the system usage graph
   const formatSystemUsageChart = () => {
@@ -81,11 +101,20 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
     );
   }
 
-  // Lấy dữ liệu từ metrics API
-  const cpuUsage = latestMetric?.cpuUsage || 0;
-  const cpuTemp = latestMetric?.temperature || 0;
-  const ramUsage = latestMetric?.memoryUsage || 0;
-  const diskUsage = latestMetric?.uploadBandwidth ? Math.min(100, latestMetric.uploadBandwidth / 1024 / 10) : 0;
+  // Lấy và xử lý dữ liệu từ metrics API
+  const cpuUsage = latestMetric?.cpuUsage !== undefined ? Number(latestMetric.cpuUsage) : 0;
+  const cpuTemp = latestMetric?.temperature !== undefined ? Number(latestMetric.temperature) : 0;
+  const ramUsage = latestMetric?.memoryUsage !== undefined ? Number(latestMetric.memoryUsage) : 0;
+  
+  // Tính toán disk usage từ bandwidth - đảm bảo là số
+  let diskUsage = 0;
+  if (latestMetric?.uploadBandwidth !== undefined) {
+    const uploadMb = Number(latestMetric.uploadBandwidth) / 1024 / 1024;
+    diskUsage = Math.min(100, Math.round(uploadMb)); // Làm tròn và giới hạn tối đa 100%
+  }
+  
+  // Log các giá trị đã xử lý
+  console.log("Giá trị hiển thị:", { cpuUsage, cpuTemp, ramUsage, diskUsage });
 
   return (
     <div className="grid grid-cols-1 gap-4">

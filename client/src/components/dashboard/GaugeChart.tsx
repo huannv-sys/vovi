@@ -27,8 +27,12 @@ const GaugeChart: React.FC<GaugeChartProps> = ({
   unit = '%', 
   colorConfig = defaultColorConfig 
 }) => {
-  // Ensure value is within min-max range
-  const normalizedValue = Math.max(min, Math.min(max, value));
+  // Log giá trị để debug
+  console.log(`GaugeChart ${title} nhận giá trị:`, value, typeof value);
+
+  // Đảm bảo value là số và trong phạm vi min-max
+  const numericValue = typeof value === 'number' ? value : Number(value) || 0;
+  const normalizedValue = Math.max(min, Math.min(max, numericValue));
   
   // Calculate percentage for the rotation
   const percentage = ((normalizedValue - min) / (max - min)) * 100;
@@ -45,6 +49,14 @@ const GaugeChart: React.FC<GaugeChartProps> = ({
   } else {
     color = colorConfig.high;
   }
+  
+  // Log calculated values
+  console.log(`${title} - Giá trị đã xử lý:`, {
+    numericValue,
+    normalizedValue,
+    percentage,
+    rotationAngle
+  });
   
   // SVG Arc parameters
   const radius = 70;
@@ -103,7 +115,7 @@ const GaugeChart: React.FC<GaugeChartProps> = ({
         </svg>
         
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 translate-y-1 text-center">
-          <span className="text-3xl font-bold text-white">{value}</span>
+          <span className="text-3xl font-bold text-white">{normalizedValue}</span>
           <span className="text-lg text-blue-300">{unit}</span>
         </div>
       </div>
