@@ -7,7 +7,7 @@ interface DeviceInfoProps {
 
 const DeviceInfo: React.FC<DeviceInfoProps> = ({ deviceId }) => {
   const { data: device, isLoading } = useQuery<Device>({ 
-    queryKey: deviceId ? [`/api/devices/${deviceId}`] : null,
+    queryKey: deviceId ? ['/api/devices', deviceId] : ['/api/devices'],
     enabled: !!deviceId,
   });
   
@@ -19,9 +19,9 @@ const DeviceInfo: React.FC<DeviceInfoProps> = ({ deviceId }) => {
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-      <div className="px-4 py-3 border-b border-gray-200">
-        <h3 className="font-medium text-neutral-dark">Device Information</h3>
+    <div className="bg-slate-800 rounded-lg shadow-sm border border-slate-700">
+      <div className="px-4 py-3 border-b border-slate-700">
+        <h3 className="font-medium text-white">Device Information</h3>
       </div>
       <div className="p-4">
         {isLoading ? (
@@ -31,56 +31,56 @@ const DeviceInfo: React.FC<DeviceInfoProps> = ({ deviceId }) => {
         ) : device ? (
           <div className="grid grid-cols-1 gap-4">
             <div className="flex">
-              <div className="w-1/3 text-sm text-gray-500">Model</div>
-              <div className="w-2/3 text-sm font-medium text-neutral-dark">
+              <div className="w-1/3 text-sm text-slate-400">Model</div>
+              <div className="w-2/3 text-sm font-medium text-white">
                 {device.model || 'Unknown'}
               </div>
             </div>
             <div className="flex">
-              <div className="w-1/3 text-sm text-gray-500">Serial Number</div>
-              <div className="w-2/3 text-sm font-medium text-neutral-dark">
+              <div className="w-1/3 text-sm text-slate-400">Serial Number</div>
+              <div className="w-2/3 text-sm font-medium text-white">
                 {device.serialNumber || 'Unknown'}
               </div>
             </div>
             <div className="flex">
-              <div className="w-1/3 text-sm text-gray-500">RouterOS Version</div>
-              <div className="w-2/3 text-sm font-medium text-neutral-dark">
+              <div className="w-1/3 text-sm text-slate-400">RouterOS Version</div>
+              <div className="w-2/3 text-sm font-medium text-white">
                 {device.routerOsVersion || 'Unknown'}
               </div>
             </div>
             <div className="flex">
-              <div className="w-1/3 text-sm text-gray-500">Firmware</div>
-              <div className="w-2/3 text-sm font-medium text-neutral-dark">
+              <div className="w-1/3 text-sm text-slate-400">Firmware</div>
+              <div className="w-2/3 text-sm font-medium text-white">
                 {device.firmware || 'Unknown'}
               </div>
             </div>
             <div className="flex">
-              <div className="w-1/3 text-sm text-gray-500">CPU</div>
-              <div className="w-2/3 text-sm font-medium text-neutral-dark">
+              <div className="w-1/3 text-sm text-slate-400">CPU</div>
+              <div className="w-2/3 text-sm font-medium text-white">
                 {device.cpu || 'Unknown'}
               </div>
             </div>
             <div className="flex">
-              <div className="w-1/3 text-sm text-gray-500">Total Memory</div>
-              <div className="w-2/3 text-sm font-medium text-neutral-dark">
+              <div className="w-1/3 text-sm text-slate-400">Total Memory</div>
+              <div className="w-2/3 text-sm font-medium text-white">
                 {device.totalMemory || 'Unknown'}
               </div>
             </div>
             <div className="flex">
-              <div className="w-1/3 text-sm text-gray-500">Storage</div>
-              <div className="w-2/3 text-sm font-medium text-neutral-dark">
+              <div className="w-1/3 text-sm text-slate-400">Storage</div>
+              <div className="w-2/3 text-sm font-medium text-white">
                 {device.storage || 'Unknown'}
               </div>
             </div>
             <div className="flex">
-              <div className="w-1/3 text-sm text-gray-500">Last Updated</div>
-              <div className="w-2/3 text-sm font-medium text-neutral-dark">
+              <div className="w-1/3 text-sm text-slate-400">Last Updated</div>
+              <div className="w-2/3 text-sm font-medium text-white">
                 {formatLastSeen(device.lastSeen)}
               </div>
             </div>
           </div>
         ) : (
-          <div className="text-sm text-gray-500 text-center py-8">
+          <div className="text-sm text-slate-400 text-center py-8">
             No device information available
           </div>
         )}

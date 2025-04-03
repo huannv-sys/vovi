@@ -36,12 +36,12 @@ const ActiveAlerts: React.FC<ActiveAlertsProps> = ({ deviceId }) => {
   const getAlertColor = (severity: string) => {
     switch (severity) {
       case alertSeverity.ERROR:
-        return 'bg-red-50 border-red-100 text-red-500';
+        return 'bg-red-900 border-red-800 text-red-100';
       case alertSeverity.WARNING:
-        return 'bg-yellow-50 border-yellow-100 text-amber-500';
+        return 'bg-amber-900 border-amber-800 text-amber-100';
       case alertSeverity.INFO:
       default:
-        return 'bg-blue-50 border-blue-100 text-blue-500';
+        return 'bg-blue-900 border-blue-800 text-blue-100';
     }
   };
   
@@ -55,10 +55,10 @@ const ActiveAlerts: React.FC<ActiveAlertsProps> = ({ deviceId }) => {
   };
   
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-        <h3 className="font-medium text-neutral-dark">Active Alerts</h3>
-        <Link href="/alerts" className="text-xs text-primary hover:text-primary-dark">
+    <div className="bg-slate-800 rounded-lg shadow-sm border border-slate-700">
+      <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
+        <h3 className="font-medium text-white">Active Alerts</h3>
+        <Link href="/alerts" className="text-xs text-blue-400 hover:text-blue-300">
           View All
         </Link>
       </div>
@@ -99,18 +99,18 @@ const ActiveAlerts: React.FC<ActiveAlertsProps> = ({ deviceId }) => {
                   <span className="font-medium text-sm">
                     {alert.message}
                   </span>
-                  <span className="ml-auto text-xs text-gray-500">
+                  <span className="ml-auto text-xs text-slate-400">
                     {formatAlertTime(alert.timestamp)}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600">{alert.source}</p>
+                <p className="text-sm text-slate-300">{alert.source}</p>
               </div>
             ))}
             
-            <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="mt-4 pt-4 border-t border-slate-700">
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full border-blue-700 text-blue-300 hover:bg-blue-900 hover:text-blue-200"
                 onClick={acknowledgeAllAlerts}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -122,7 +122,7 @@ const ActiveAlerts: React.FC<ActiveAlertsProps> = ({ deviceId }) => {
             </div>
           </>
         ) : (
-          <div className="text-sm text-center py-8 text-gray-500">
+          <div className="text-sm text-center py-8 text-slate-400">
             No active alerts
           </div>
         )}
