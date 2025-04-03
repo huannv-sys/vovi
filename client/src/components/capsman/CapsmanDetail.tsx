@@ -1,271 +1,306 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import type { CapsmanAP } from '@shared/schema';
+import { format } from 'date-fns';
+
 import {
-  Wifi,
-  WifiOff,
-  Radio,
-  Server,
-  Clock,
-  Info,
-  Users,
-  Settings
-} from "lucide-react";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from '@/components/ui/hover-card';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { 
+  WifiIcon, 
+  SignalIcon, 
+  InfoIcon, 
+  ServerIcon,
+  BarChart4Icon,
+  UsersIcon,
+  RouterIcon
+} from 'lucide-react';
+import ClientsList from './ClientsList';
 
 interface CapsmanDetailProps {
   deviceId: number | null;
-  apId?: number | null;
+  apId: number | null;
 }
 
 export default function CapsmanDetail({ deviceId, apId }: CapsmanDetailProps) {
-  const [activeTab, setActiveTab] = useState("info");
+  const [activeTab, setActiveTab] = useState('overview');
 
-  const { data: capsmanAPs, isLoading: isLoadingAPs, error: apsError } = useQuery({
-    queryKey: deviceId ? [`/api/devices/${deviceId}/capsman`] : [],
-    enabled: !!deviceId
+  const { data: capsmanAP, isLoading } = useQuery<any>({
+    queryKey: ['/api/capsman', apId],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/api/capsman/${apId}`);
+      return res.json();
+    },
+    enabled: !!apId,
   });
 
-  // Lấy thông tin chi tiết về một CAPsMAN AP cụ thể nếu có apId
-  const { data: apDetail, isLoading: isLoadingDetail, error: detailError } = useQuery({
-    queryKey: apId ? [`/api/capsman/${apId}`] : [],
-    enabled: !!apId
-  });
-
-  // Truy vấn thông tin thiết bị để kiểm tra xem có hỗ trợ CAPsMAN không
-  const { data: device } = useQuery<any>({
-    queryKey: deviceId ? [`/api/devices/${deviceId}`] : [],
-    enabled: !!deviceId
-  });
-
-  if (!deviceId) {
+  if (isLoading) {
     return (
-      <Card>
+      <Card className="w-full">
         <CardHeader>
-          <CardTitle>Chi tiết CAPsMAN AP</CardTitle>
-          <CardDescription>Vui lòng chọn thiết bị để xem chi tiết</CardDescription>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  if (isLoadingAPs || isLoadingDetail) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Chi tiết CAPsMAN AP</CardTitle>
-          <CardDescription>Đang tải thông tin chi tiết...</CardDescription>
+          <Skeleton className="h-8 w-64 mb-2" />
+          <Skeleton className="h-4 w-48" />
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
-            <Skeleton className="h-4 w-full" />
+          <div className="space-y-4">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  if (apsError || detailError) {
+  if (!capsmanAP) {
     return (
-      <Card>
+      <Card className="w-full">
         <CardHeader>
-          <CardTitle>Chi tiết CAPsMAN AP</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Alert variant="destructive">
-            <AlertTitle>Lỗi</AlertTitle>
-            <AlertDescription>
-              Không thể tải thông tin chi tiết. Vui lòng thử lại sau.
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Kiểm tra xem thiết bị có hỗ trợ CAPsMAN không
-  if (device && (device.hasCAPsMAN === false || !device.hasCAPsMAN)) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Chi tiết CAPsMAN AP</CardTitle>
-          <CardDescription>Thiết bị không hỗ trợ CAPsMAN</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center p-6 text-muted-foreground">
-            <Radio className="h-10 w-10 mr-2" />
-            <p>Thiết bị này không có chức năng CAPsMAN controller</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (!capsmanAPs || !Array.isArray(capsmanAPs) || capsmanAPs.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Chi tiết CAPsMAN AP</CardTitle>
-          <CardDescription>Không có Access Point kết nối</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center p-6 text-muted-foreground">
-            <WifiOff className="h-10 w-10 mr-2" />
-            <p>Không có thiết bị AP nào được quản lý bởi CAPsMAN</p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Sử dụng AP đầu tiên nếu không có apId
-  const selectedAP = apDetail || (apId && Array.isArray(capsmanAPs) 
-    ? capsmanAPs.find((ap: any) => ap.id === apId) 
-    : (Array.isArray(capsmanAPs) && capsmanAPs.length > 0 ? capsmanAPs[0] : null));
-
-  if (!selectedAP) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Chi tiết CAPsMAN AP</CardTitle>
-          <CardDescription>Không tìm thấy thông tin Access Point</CardDescription>
+          <CardTitle>Không tìm thấy thông tin Access Point</CardTitle>
+          <CardDescription>
+            Không thể tải thông tin chi tiết của Access Point.
+          </CardDescription>
         </CardHeader>
       </Card>
     );
   }
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-center">
+    <Card className="w-full">
+      <CardHeader>
+        <div className="flex items-center justify-between">
           <div>
-            <CardTitle>{selectedAP.identity || selectedAP.name}</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <RouterIcon className="h-5 w-5 text-blue-500" />
+              {capsmanAP.name || 'Access Point không xác định'}
+            </CardTitle>
             <CardDescription>
-              {selectedAP.state === 'running' ? 
-                <span className="flex items-center text-green-500">
-                  <Wifi className="h-4 w-4 mr-1" /> Đang hoạt động
-                </span> : 
-                <span className="flex items-center text-red-500">
-                  <WifiOff className="h-4 w-4 mr-1" /> {selectedAP.state || 'Ngừng hoạt động'}
-                </span>
-              }
+              {capsmanAP.identity || 'ID không xác định'} | MAC: {capsmanAP.macAddress}
             </CardDescription>
           </div>
-          <div className="text-right">
-            <CardTitle>Model: {selectedAP.model || 'N/A'}</CardTitle>
-            <CardDescription>
-              Uptime: {selectedAP.uptime || 'N/A'}
-            </CardDescription>
-          </div>
+          <Badge
+            variant={capsmanAP.state === 'running' ? 'success' : 'destructive'}
+            className="capitalize"
+          >
+            {capsmanAP.state || 'Không xác định'}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="info">
-              <Info className="h-4 w-4 mr-2" /> Thông tin
+        <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="mb-4 grid w-full grid-cols-3">
+            <TabsTrigger className="flex items-center gap-2" value="overview">
+              <InfoIcon className="h-4 w-4" />
+              <span>Tổng quan</span>
             </TabsTrigger>
-            <TabsTrigger value="clients">
-              <Users className="h-4 w-4 mr-2" /> Clients
+            <TabsTrigger className="flex items-center gap-2" value="performance">
+              <BarChart4Icon className="h-4 w-4" />
+              <span>Hiệu suất</span>
             </TabsTrigger>
-            <TabsTrigger value="system">
-              <Server className="h-4 w-4 mr-2" /> Hệ thống
+            <TabsTrigger className="flex items-center gap-2" value="clients">
+              <UsersIcon className="h-4 w-4" />
+              <span>Người dùng ({capsmanAP.clients || 0})</span>
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="info" className="pt-4">
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-y-2">
-                <div className="text-sm font-medium">Tên thiết bị:</div>
-                <div>{selectedAP.identity || selectedAP.name}</div>
-                
-                <div className="text-sm font-medium">Địa chỉ IP:</div>
-                <div>{selectedAP.ipAddress || 'N/A'}</div>
-                
-                <div className="text-sm font-medium">MAC Address:</div>
-                <div>{selectedAP.macAddress || 'N/A'}</div>
-                
-                <div className="text-sm font-medium">Radio MAC:</div>
-                <div>{selectedAP.radioMac || 'N/A'}</div>
-                
-                <div className="text-sm font-medium">Radio Name:</div>
-                <div>{selectedAP.radioName || 'N/A'}</div>
-                
-                <div className="text-sm font-medium">Trạng thái:</div>
-                <div>{selectedAP.state === 'running' ? 'Hoạt động' : selectedAP.state || 'Ngừng hoạt động'}</div>
-                
-                <div className="text-sm font-medium">Uptime:</div>
-                <div>{selectedAP.uptime || 'N/A'}</div>
-                
-                <div className="text-sm font-medium">Cập nhật cuối:</div>
-                <div>{formatDate(selectedAP.lastSeen)}</div>
-              </div>
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="clients" className="pt-4">
-            <div className="space-y-4">
-              <div className="flex justify-between items-center bg-muted p-4 rounded-lg">
-                <div className="flex items-center">
-                  <Users className="h-10 w-10 mr-3 text-primary" />
-                  <div>
-                    <h3 className="text-lg font-semibold">Clients kết nối</h3>
-                    <p className="text-sm text-muted-foreground">Số lượng thiết bị</p>
+          <TabsContent value="overview">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Trạng thái</h4>
+                    <div className="flex items-center gap-2">
+                      <div className={`h-2 w-2 rounded-full ${
+                        capsmanAP.state === 'running' ? 'bg-green-500' : 'bg-red-500'
+                      }`} />
+                      <span>{capsmanAP.state || 'Không xác định'}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Địa chỉ IP</h4>
+                    <p>{capsmanAP.ipAddress || 'Không xác định'}</p>
                   </div>
                 </div>
-                <div className="text-3xl font-bold">{selectedAP.clients || 0}</div>
+
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Thông tin thiết bị</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Model:</span>
+                      <p>{capsmanAP.model || 'Không xác định'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Phiên bản:</span>
+                      <p>{capsmanAP.version || 'Không xác định'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Serial Number:</span>
+                      <p>{capsmanAP.serialNumber || 'Không xác định'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Uptime:</span>
+                      <p>{capsmanAP.uptime || 'Không xác định'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Radio</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Radio Name:</span>
+                      <p>{capsmanAP.radioName || 'Không xác định'}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Radio MAC:</span>
+                      <p>{capsmanAP.radioMac || 'Không xác định'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <h4 className="text-sm font-medium">Thông tin kết nối</h4>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Lần kết nối cuối:</span>
+                      <p>
+                        {capsmanAP.lastSeen 
+                          ? format(new Date(capsmanAP.lastSeen), 'dd/MM/yyyy HH:mm:ss')
+                          : 'Không xác định'}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Số người dùng:</span>
+                      <p>{capsmanAP.clients || 0}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="rounded-md border p-4">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex justify-between">
+                      <div>
+                        <h4 className="text-sm font-medium">Tín hiệu</h4>
+                        <p className="text-sm text-muted-foreground">Cường độ tín hiệu</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <SignalIcon className="h-5 w-5 text-blue-500" />
+                        <span className="font-medium">
+                          {capsmanAP.signalStrength !== undefined 
+                            ? `${capsmanAP.signalStrength} dBm` 
+                            : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between">
+                      <div>
+                        <h4 className="text-sm font-medium">Kênh/Tần số</h4>
+                        <p className="text-sm text-muted-foreground">Kênh và tần số hoạt động</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <WifiIcon className="h-5 w-5 text-blue-500" />
+                        <span className="font-medium">
+                          {capsmanAP.channel || 'N/A'} 
+                          {capsmanAP.frequency ? ` (${capsmanAP.frequency} MHz)` : ''}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-between">
+                      <div>
+                        <h4 className="text-sm font-medium">Tốc độ</h4>
+                        <p className="text-sm text-muted-foreground">Tốc độ truyền/nhận dữ liệu</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <ServerIcon className="h-5 w-5 text-blue-500" />
+                        <div className="text-right">
+                          <div className="font-medium">TX: {capsmanAP.txRate || 'N/A'}</div>
+                          <div className="font-medium">RX: {capsmanAP.rxRate || 'N/A'}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </TabsContent>
           
-          <TabsContent value="system" className="pt-4">
+          <TabsContent value="performance">
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-muted p-4 rounded-lg">
-                  <h3 className="text-sm font-medium">Model</h3>
-                  <p className="text-lg font-semibold">{selectedAP.model || 'N/A'}</p>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-md border p-4">
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Thông số vô tuyến</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Tín hiệu:</span>
+                        <p>{capsmanAP.signalStrength !== undefined ? `${capsmanAP.signalStrength} dBm` : 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Nhiễu:</span>
+                        <p>{capsmanAP.noiseFloor !== undefined ? `${capsmanAP.noiseFloor} dBm` : 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Khoảng cách:</span>
+                        <p>{capsmanAP.distance || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">CCQ:</span>
+                        <p>{capsmanAP.ccq !== undefined ? `${capsmanAP.ccq}%` : 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="bg-muted p-4 rounded-lg">
-                  <h3 className="text-sm font-medium">Version</h3>
-                  <p className="text-lg font-semibold">{selectedAP.version || 'N/A'}</p>
-                </div>
-                <div className="bg-muted p-4 rounded-lg">
-                  <h3 className="text-sm font-medium">Serial Number</h3>
-                  <p className="text-lg font-semibold">{selectedAP.serialNumber || 'N/A'}</p>
-                </div>
-                <div className="bg-muted p-4 rounded-lg">
-                  <h3 className="text-sm font-medium">Uptime</h3>
-                  <p className="text-lg font-semibold flex items-center">
-                    <Clock className="h-4 w-4 mr-1" /> {selectedAP.uptime || 'N/A'}
-                  </p>
+                
+                <div className="rounded-md border p-4">
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-medium">Hiệu suất truyền dữ liệu</h3>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="text-muted-foreground">Tốc độ TX:</span>
+                        <p>{capsmanAP.txRate || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-muted-foreground">Tốc độ RX:</span>
+                        <p>{capsmanAP.rxRate || 'N/A'}</p>
+                      </div>
+                    </div>
+                    <div className="pt-2">
+                      <p className="text-xs text-muted-foreground">
+                        Chưa có dữ liệu thống kê hiệu suất theo thời gian cho Access Point này.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
+          </TabsContent>
+          
+          <TabsContent value="clients">
+            <ClientsList apId={apId} apName={capsmanAP.name} />
           </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
   );
-}
-
-function formatDate(dateString: string | null) {
-  if (!dateString) return 'N/A';
-  
-  try {
-    const date = new Date(dateString);
-    return new Intl.DateTimeFormat('vi-VN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
-    }).format(date);
-  } catch (error) {
-    return dateString;
-  }
 }

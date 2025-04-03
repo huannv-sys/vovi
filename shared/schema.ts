@@ -140,6 +140,28 @@ export const insertCapsmanAPSchema = createInsertSchema(capsmanAPs).omit({
   lastSeen: true,
 });
 
+// CAPsMAN clients/wireless users
+export const capsmanClients = pgTable("capsman_clients", {
+  id: serial("id").primaryKey(),
+  apId: integer("ap_id").notNull(),
+  deviceId: integer("device_id").notNull(),
+  macAddress: text("mac_address").notNull(),
+  ipAddress: text("ip_address"),
+  hostname: text("hostname"),
+  signalStrength: real("signal_strength"),
+  txRate: text("tx_rate"),
+  rxRate: text("rx_rate"),
+  connectedTime: text("connected_time"),
+  username: text("username"),
+  interface: text("interface"),
+  lastActivity: timestamp("last_activity").defaultNow(),
+});
+
+export const insertCapsmanClientSchema = createInsertSchema(capsmanClients).omit({
+  id: true,
+  lastActivity: true,
+});
+
 // Type definitions
 export type Device = typeof devices.$inferSelect;
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
@@ -153,4 +175,6 @@ export type WirelessInterface = typeof wirelessInterfaces.$inferSelect;
 export type InsertWirelessInterface = z.infer<typeof insertWirelessInterfaceSchema>;
 export type CapsmanAP = typeof capsmanAPs.$inferSelect;
 export type InsertCapsmanAP = z.infer<typeof insertCapsmanAPSchema>;
+export type CapsmanClient = typeof capsmanClients.$inferSelect;
+export type InsertCapsmanClient = z.infer<typeof insertCapsmanClientSchema>;
 export type AlertSeverity = typeof alertSeverity[keyof typeof alertSeverity];

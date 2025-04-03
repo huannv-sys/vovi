@@ -11,12 +11,15 @@ import {
   type InsertWirelessInterface,
   type CapsmanAP,
   type InsertCapsmanAP,
+  type CapsmanClient,
+  type InsertCapsmanClient,
   devices,
   metrics,
   interfaces,
   alerts,
   wirelessInterfaces,
   capsmanAPs,
+  capsmanClients,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -57,6 +60,14 @@ export interface IStorage {
   createCapsmanAP(ap: InsertCapsmanAP): Promise<CapsmanAP>;
   updateCapsmanAP(id: number, ap: Partial<CapsmanAP>): Promise<CapsmanAP | undefined>;
   deleteCapsmanAP(id: number): Promise<boolean>;
+  
+  // CAPsMAN Client operations
+  getCapsmanClients(apId: number): Promise<CapsmanClient[]>;
+  getCapsmanClientsByDevice(deviceId: number): Promise<CapsmanClient[]>;
+  getCapsmanClient(id: number): Promise<CapsmanClient | undefined>;
+  createCapsmanClient(client: InsertCapsmanClient): Promise<CapsmanClient>;
+  updateCapsmanClient(id: number, client: Partial<CapsmanClient>): Promise<CapsmanClient | undefined>;
+  deleteCapsmanClient(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -66,12 +77,14 @@ export class MemStorage implements IStorage {
   private alerts: Map<number, Alert>;
   private wirelessInterfaces: Map<number, WirelessInterface>;
   private capsmanAPs: Map<number, CapsmanAP>;
+  private capsmanClients: Map<number, CapsmanClient>;
   private deviceIdCounter: number;
   private metricIdCounter: number;
   private interfaceIdCounter: number;
   private alertIdCounter: number;
   private wirelessInterfaceIdCounter: number;
   private capsmanAPIdCounter: number;
+  private capsmanClientIdCounter: number;
 
   constructor() {
     this.devices = new Map();
@@ -80,12 +93,14 @@ export class MemStorage implements IStorage {
     this.alerts = new Map();
     this.wirelessInterfaces = new Map();
     this.capsmanAPs = new Map();
+    this.capsmanClients = new Map();
     this.deviceIdCounter = 1;
     this.metricIdCounter = 1;
     this.interfaceIdCounter = 1;
     this.alertIdCounter = 1;
     this.wirelessInterfaceIdCounter = 1;
     this.capsmanAPIdCounter = 1;
+    this.capsmanClientIdCounter = 1;
 
     // Add sample device for initial testing
     this.createDevice({
@@ -380,6 +395,56 @@ export class MemStorage implements IStorage {
 
   async deleteCapsmanAP(id: number): Promise<boolean> {
     return this.capsmanAPs.delete(id);
+  }
+  
+  // CAPsMAN Client operations
+  async getCapsmanClients(apId: number): Promise<CapsmanClient[]> {
+    return Array.from(this.capsmanClients.values())
+      .filter((client) => client.apId === apId);
+  }
+
+  async getCapsmanClientsByDevice(deviceId: number): Promise<CapsmanClient[]> {
+    return Array.from(this.capsmanClients.values())
+      .filter((client) => client.deviceId === deviceId);
+  }
+
+  async getCapsmanClient(id: number): Promise<CapsmanClient | undefined> {
+    return this.capsmanClients.get(id);
+  }
+
+  async createCapsmanClient(insertCapsmanClient: InsertCapsmanClient): Promise<CapsmanClient> {
+    const id = this.capsmanClientIdCounter++;
+    const capsmanClient: CapsmanClient = { 
+      ...insertCapsmanClient, 
+      id,
+      apId: insertCapsmanClient.apId,
+      deviceId: insertCapsmanClient.deviceId,
+      macAddress: insertCapsmanClient.macAddress,
+      ipAddress: insertCapsmanClient.ipAddress || null,
+      hostname: insertCapsmanClient.hostname || null,
+      signalStrength: insertCapsmanClient.signalStrength || null,
+      txRate: insertCapsmanClient.txRate || null,
+      rxRate: insertCapsmanClient.rxRate || null,
+      connectedTime: insertCapsmanClient.connectedTime || null,
+      username: insertCapsmanClient.username || null,
+      interface: insertCapsmanClient.interface || null,
+      lastActivity: new Date()
+    };
+    this.capsmanClients.set(id, capsmanClient);
+    return capsmanClient;
+  }
+
+  async updateCapsmanClient(id: number, updateClient: Partial<CapsmanClient>): Promise<CapsmanClient | undefined> {
+    const capsmanClient = this.capsmanClients.get(id);
+    if (!capsmanClient) return undefined;
+
+    const updatedCapsmanClient = { ...capsmanClient, ...updateClient };
+    this.capsmanClients.set(id, updatedCapsmanClient);
+    return updatedCapsmanClient;
+  }
+
+  async deleteCapsmanClient(id: number): Promise<boolean> {
+    return this.capsmanClients.delete(id);
   }
 }
 

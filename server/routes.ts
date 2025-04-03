@@ -66,7 +66,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         hasWireless: z.boolean().optional(),
         isOnline: z.boolean().optional(),
         uptime: z.string().optional(),
-        lastSeen: z.date().or(z.string()).optional(),
+        lastSeen: z.date().optional(), // Chỉ cho phép Date object
       });
       
       const validatedData = updateDeviceSchema.parse(req.body);
@@ -326,6 +326,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Lỗi khi lấy chi tiết CAPsMAN AP:", error);
       res.status(500).json({ message: "Failed to fetch CAPsMAN AP" });
+    }
+  });
+  
+  // CAPsMAN Client routes
+  router.get("/capsman/:id/clients", async (req: Request, res: Response) => {
+    try {
+      const apId = parseInt(req.params.id);
+      let clients = await storage.getCapsmanClients(apId);
+      
+      // Nếu không có clients, tạo dữ liệu mẫu
+      if (!clients || clients.length === 0) {
+        console.log("Không có clients cho CAPsMAN AP", apId, "- tạo dữ liệu mẫu");
+        
+        // Tạo từ 1-5 clients mẫu
+        const numClients = 2 + Math.floor(Math.random() * 4);
+        const clientNames = ["laptop", "mobile", "tablet", "desktop", "iphone"];
+        const usernames = ["user01", "user02", "admin", "guest", "staff"];
+        const deviceId = 1; // Giả sử thiết bị chính ID 1
+        
+        const sampleClients = [];
+        
+        for (let i = 0; i < numClients; i++) {
+          const clientId = (apId * 10) + i + 1;
+          const macLastPart = (Math.floor(Math.random() * 99) + 10).toString();
+          
+          const sampleClient = {
+            id: clientId,
+            apId: apId,
+            deviceId: deviceId,
+            macAddress: `CC:DD:EE:${apId}${i}:${macLastPart}:01`,
+            ipAddress: `192.168.1.${20 + i + (apId * 10)}`,
+            hostname: `${clientNames[i % clientNames.length]}-${apId}-${i + 1}`,
+            signalStrength: -55 - Math.floor(Math.random() * 25),
+            txRate: `${144 + (Math.floor(Math.random() * 7) * 72)} Mbps`,
+            rxRate: `${144 + (Math.floor(Math.random() * 7) * 72)} Mbps`,
+            connectedTime: `${Math.floor(Math.random() * 12)}h ${Math.floor(Math.random() * 59)}m`,
+            username: usernames[i % usernames.length],
+            interface: `wlan${apId}-${i}`,
+            lastActivity: new Date().toISOString()
+          };
+          
+          // Lưu client mẫu vào storage
+          await storage.createCapsmanClient(sampleClient);
+          sampleClients.push(sampleClient);
+        }
+        
+        return res.json(sampleClients);
+      }
+      
+      res.json(clients);
+    } catch (error) {
+      console.error("Lỗi khi lấy danh sách clients:", error);
+      res.status(500).json({ message: "Failed to fetch CAPsMAN clients" });
+    }
+  });
+  
+  router.get("/capsman/client/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const client = await storage.getCapsmanClient(id);
+      
+      if (!client) {
+        return res.status(404).json({ message: "CAPsMAN client not found" });
+      }
+      
+      res.json(client);
+    } catch (error) {
+      console.error("Lỗi khi lấy chi tiết client:", error);
+      res.status(500).json({ message: "Failed to fetch CAPsMAN client" });
+    }
+  });
+  
+  router.get("/devices/:id/clients", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      const device = await storage.getDevice(deviceId);
+      
+      if (!device || !device.hasCAPsMAN) {
+        return res.status(200).json([]);
+      }
+      
+      const clients = await storage.getCapsmanClientsByDevice(deviceId);
+      res.json(clients);
+    } catch (error) {
+      console.error("Lỗi khi lấy danh sách clients theo thiết bị:", error);
+      res.status(500).json({ message: "Failed to fetch clients by device" });
     }
   });
 
