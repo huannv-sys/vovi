@@ -39,8 +39,10 @@ class MikrotikClient {
       
       if (this.useMockData) {
         // Use mock data for development/testing
-        console.log(`Using mock data for device at ${this.ipAddress}`);
-        this.connected = true;
+        console.log(`Using demo data for device at ${this.ipAddress}`);
+        // Không đặt trường private directly
+        // Sử dụng một cách để thiết lập trường trong context này
+        Object.defineProperty(this, 'connected', { value: true });
         return true;
       }
       
@@ -182,7 +184,10 @@ class MikrotikClient {
   }
 
   async executeCommand(command: string, params: any[] = []): Promise<any> {
-    if (!this.connected) {
+    // Trường hợp đặc biệt cho demo mode - bỏ qua kiểm tra kết nối
+    if (this.useMockData) {
+      // Tiếp tục xử lý dữ liệu demo không cần thiết kết nối
+    } else if (!this.connected) {
       throw new Error("Not connected to RouterOS device");
     }
     
@@ -560,11 +565,29 @@ export class MikrotikService {
       // Vì Replit không thể kết nối với thiết bị bên ngoài mạng local
       const isReplit = process.env.REPL_ID || process.env.REPL_SLUG;
       if (isReplit) {
-        console.log(`⚠️ Running in Replit environment - using mock data for device ${deviceId}`);
+        console.log(`⚠️ DEMO MODE - Running in Replit environment - using demo data for device ${deviceId}`);
+        
+        // Cập nhật thiết bị để hiển thị đúng trong DEMO MODE - không báo là online
+        await storage.updateDevice(deviceId, { 
+          isOnline: false,
+          lastSeen: new Date()
+        });
+        
+        // Đánh dấu là đang dùng dữ liệu demo
         const client = new MikrotikClient(device.ipAddress, device.username, device.password);
         client.useMockData = true;
         this.clients.set(deviceId, client);
-        client.connected = true; // Đặt trạng thái kết nối thành true
+        // Vẫn cho phép client thực hiện các command nhưng không đặt trường private
+        // client.connected = true;
+        
+        // Thêm cảnh báo về chế độ demo
+        await this.createAlert(
+          deviceId,
+          alertSeverity.INFO,
+          "Demo Mode Active",
+          `Demo mode is active for device ${device.name}. Real-time data from actual device is not available in Replit environment.`
+        );
+        
         return true;
       }
       
