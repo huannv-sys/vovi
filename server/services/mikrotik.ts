@@ -20,16 +20,22 @@ class MikrotikClient {
   private password: string;
   private client: rosjs.RouterOSClient | null = null;
   private useMockData: boolean = false; // Set to false to connect to real Mikrotik devices
+  private port: number = 8728; // Cổng API mặc định của RouterOS
   
   constructor(ipAddress: string, username: string, password: string) {
     this.ipAddress = ipAddress;
     this.username = username;
     this.password = password;
   }
+  
+  // Phương thức để đặt cổng API RouterOS
+  setPort(port: number): void {
+    this.port = port;
+  }
 
-  async connect(): Promise<boolean> {
+  async connect(timeout?: number): Promise<boolean> {
     try {
-      console.log(`Connecting to RouterOS device at ${this.ipAddress}`);
+      console.log(`Connecting to RouterOS device at ${this.ipAddress} with username "${this.username}" on port ${this.port}`);
       
       if (this.useMockData) {
         // Use mock data for development/testing
@@ -38,34 +44,84 @@ class MikrotikClient {
         return true;
       }
       
+      // Tăng thời gian chờ kết nối nếu định rõ
+      const connectionTimeout = timeout || 5000;
+      
       // Real connection with RouterOS client
       try {
-        console.log(`Attempting real connection to ${this.ipAddress}`);
+        console.log(`Attempting real connection to ${this.ipAddress} on port ${this.port} with timeout of ${connectionTimeout}ms`);
         
-        // Create RouterOS API client
-        this.client = new rosjs.RouterOSClient({
+        // Kiểm tra xem địa chỉ IP có phải là địa chỉ IP tĩnh không
+        // Hầu hết các thiết bị nội bộ sẽ nằm trong các dải sau:
+        // 10.0.0.0 - 10.255.255.255
+        // 172.16.0.0 - 172.31.255.255
+        // 192.168.0.0 - 192.168.255.255
+        const isPrivateIP = 
+          /^10\./.test(this.ipAddress) || 
+          /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(this.ipAddress) || 
+          /^192\.168\./.test(this.ipAddress);
+        
+        if (!isPrivateIP) {
+          console.log(`⚠️ Warning: Attempting to connect to a non-private IP address: ${this.ipAddress}`);
+          console.log(`This may be slow or fail if the device is not directly accessible`);
+        }
+        
+        // Create RouterOS API client with detailed config
+        const config = {
           host: this.ipAddress,
           user: this.username,
           password: this.password,
-          timeout: 5000 // 5 second timeout
+          timeout: connectionTimeout,
+          port: this.port,
+          keepalive: true
+        };
+        
+        console.log(`Connection config: ${JSON.stringify({...config, password: '******'})}`);
+        
+        // Tạo đối tượng Promise với timeout
+        const connectionPromise = new Promise<boolean>((resolve, reject) => {
+          try {
+            this.client = new rosjs.RouterOSClient(config);
+            
+            if (this.client) {
+              console.log(`Calling connect() on RouterOS client...`);
+              this.client.connect()
+                .then(() => {
+                  console.log(`Successfully connected to ${this.ipAddress} on port ${this.port}`);
+                  this.connected = true;
+                  resolve(true);
+                })
+                .catch((err) => {
+                  reject(err);
+                });
+            } else {
+              reject(new Error("Failed to create RouterOS client"));
+            }
+          } catch (err) {
+            reject(err);
+          }
         });
         
-        // Connect to the device
-        if (this.client) {
-          await this.client.connect();
-          console.log(`Successfully connected to ${this.ipAddress}`);
-          this.connected = true;
-          return true;
-        }
-        return false;
-      } catch (connectionError) {
-        console.error(`Failed to connect to MikroTik device at ${this.ipAddress}:`, connectionError);
+        // Đặt timeout - nếu kết nối mất quá nhiều thời gian, hủy bỏ
+        const timeoutPromise = new Promise<boolean>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`Connection timeout after ${connectionTimeout}ms`));
+          }, connectionTimeout);
+        });
+        
+        // Chạy đua giữa kết nối thành công và timeout
+        const connected = await Promise.race([connectionPromise, timeoutPromise]);
+        return connected;
+      } catch (error: any) {
+        console.error(`Failed to connect to MikroTik device at ${this.ipAddress}:${this.port}:`, error);
+        console.error(`Error details: ${error.message}, Code: ${error.code || 'N/A'}, errno: ${error.errno || 'N/A'}`);
         this.connected = false;
         this.client = null;
         return false;
       }
-    } catch (error) {
-      console.error(`Error in connect method for ${this.ipAddress}:`, error);
+    } catch (error: any) {
+      console.error(`Error in connect method for ${this.ipAddress}:${this.port}:`, error);
+      console.error(`Stack trace: ${error.stack}`);
       this.connected = false;
       this.client = null;
       return false;
@@ -457,18 +513,45 @@ export class MikrotikService {
     }
     
     try {
-      const client = new MikrotikClient(device.ipAddress, device.username, device.password);
-      const connected = await client.connect();
+      console.log(`Connecting to device ${deviceId} (${device.ipAddress})...`);
       
-      if (connected) {
-        this.clients.set(deviceId, client);
-        await storage.updateDevice(deviceId, { isOnline: true, lastSeen: new Date() });
-        return true;
+      // Tạo một máy khách MikroTik mới
+      const client = new MikrotikClient(device.ipAddress, device.username, device.password);
+      
+      // Thử kết nối với các cổng API của RouterOS khác nhau
+      // Các cổng API thông thường của RouterOS là 8728 (API không mã hóa) và 8729 (API SSL)
+      const ports = [8728, 8729, 80, 443];
+      let connected = false;
+      
+      // Thử kết nối với từng cổng
+      for (const port of ports) {
+        try {
+          // Đặt cổng trong máy khách
+          client.setPort(port);
+          console.log(`Trying to connect to ${device.ipAddress} on port ${port}...`);
+          
+          // Thử kết nối với thời gian chờ lâu hơn cho lần kết nối đầu tiên
+          connected = await client.connect(port === ports[0] ? 10000 : 5000);
+          
+          // Nếu kết nối thành công, dừng vòng lặp
+          if (connected) {
+            console.log(`Successfully connected to device ${deviceId} on port ${port}`);
+            this.clients.set(deviceId, client);
+            await storage.updateDevice(deviceId, { isOnline: true, lastSeen: new Date() });
+            return true;
+          }
+        } catch (error) {
+          console.log(`Failed to connect to ${device.ipAddress} on port ${port}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          // Tiếp tục với cổng tiếp theo
+        }
       }
       
+      // Nếu không thể kết nối sau khi thử tất cả các cổng
+      console.error(`Failed to connect to device ${deviceId} (${device.ipAddress}) on any port`);
+      await storage.updateDevice(deviceId, { isOnline: false, lastSeen: new Date() });
       return false;
     } catch (error) {
-      console.error(`Failed to connect to device ${deviceId}:`, error);
+      console.error(`Error in connectToDevice for ${deviceId}:`, error);
       await storage.updateDevice(deviceId, { isOnline: false });
       return false;
     }
@@ -821,7 +904,7 @@ export class MikrotikService {
   }
   
   public async discoverDevices(subnet: string): Promise<number> {
-    // Implementation to scan the network for MikroTik devices
+    // Cải thiện phương thức khám phá thiết bị Mikrotik trên mạng
     console.log(`Scanning subnet ${subnet} for Mikrotik devices...`);
     
     let discoveredCount = 0;
@@ -837,81 +920,159 @@ export class MikrotikService {
     // Calculate IP range to scan
     const baseIPParts = baseIP.split('.').map(part => parseInt(part));
     const ipCount = 2 ** (32 - maskBits);
-    const maxHosts = Math.min(ipCount - 2, 254); // Practical limit for scanning
+    const maxHosts = Math.min(ipCount - 2, 254); // Giới hạn thực tế cho việc quét
     
-    // For each IP in the range
-    const promises = [];
-    for (let i = 1; i <= maxHosts; i++) {
-      const ip = `${baseIPParts[0]}.${baseIPParts[1]}.${baseIPParts[2]}.${i}`;
-      promises.push(this.checkIfMikrotik(ip));
-    }
+    console.log(`Scanning ${maxHosts} hosts on subnet ${subnet}...`);
     
-    // Wait for all scans to complete
-    const results = await Promise.all(promises);
-    const discoveredDevices = results.filter(Boolean);
+    // Scan từng IP trong dải mạng
+    // Sử dụng batching để tránh quá tải
+    const batchSize = 10;
+    const totalBatches = Math.ceil(maxHosts / batchSize);
     
-    // Add discovered devices to storage
-    for (const device of discoveredDevices) {
-      try {
-        await storage.createDevice({
-          name: device.identity || `MikroTik at ${device.ip}`,
-          ipAddress: device.ip,
-          username: 'admin', // Default credentials, should be updated
-          password: '',
-          description: `Automatically discovered device: ${device.model || 'Unknown model'}`,
-          location: 'Auto-discovered',
-          model: device.model || 'Unknown',
-          serialNumber: device.serial || null,
-          isOnline: true,
-          lastSeen: new Date(),
-          hasCAPsMAN: false, // Will be updated later
-          hasWireless: false, // Will be updated later
-          tags: ['auto-discovered']
-        });
-        discoveredCount++;
-      } catch (error) {
-        console.error(`Failed to add discovered device at ${device.ip}:`, error);
+    for (let batch = 0; batch < totalBatches; batch++) {
+      const startIndex = batch * batchSize + 1;
+      const endIndex = Math.min(startIndex + batchSize - 1, maxHosts);
+      console.log(`Scanning batch ${batch + 1}/${totalBatches}: IPs ${startIndex} to ${endIndex}`);
+      
+      const batchPromises = [];
+      
+      for (let i = startIndex; i <= endIndex; i++) {
+        const ip = `${baseIPParts[0]}.${baseIPParts[1]}.${baseIPParts[2]}.${i}`;
+        batchPromises.push(this.checkIfMikrotik(ip));
+      }
+      
+      // Đợi tất cả các quét trong batch hoàn thành
+      const batchResults = await Promise.all(batchPromises);
+      const batchDiscoveredDevices = batchResults.filter(Boolean);
+      
+      // Thêm các thiết bị được phát hiện vào storage
+      for (const device of batchDiscoveredDevices) {
+        try {
+          // Kiểm tra xem thiết bị đã tồn tại trong storage chưa
+          const existingDevice = await storage.getDeviceByIp(device.ipAddress);
+          
+          if (existingDevice) {
+            // Cập nhật thiết bị hiện có với thông tin đăng nhập mới phát hiện
+            await storage.updateDevice(existingDevice.id, {
+              name: device.name,
+              model: device.model,
+              serialNumber: device.serialNumber,
+              routerOsVersion: device.routerOsVersion,
+              firmware: device.firmware,
+              cpu: device.cpu,
+              totalMemory: device.totalMemory?.toString() || null,
+              lastSeen: new Date(),
+              // Chỉ cập nhật thông tin đăng nhập nếu thông tin hiện tại không hoạt động
+              ...(!existingDevice.isOnline ? {username: device.username, password: device.password} : {})
+            });
+            
+            console.log(`✅ Updated existing device: ${device.name} at ${device.ipAddress}`);
+            discoveredCount++;
+          } else {
+            // Tạo thiết bị mới với thông tin đăng nhập đã phát hiện
+            const newDevice: InsertDevice = {
+              name: device.name,
+              ipAddress: device.ipAddress,
+              username: device.username || 'admin',
+              password: device.password || '',
+              isOnline: false,
+              lastSeen: new Date(),
+              model: device.model,
+              serialNumber: device.serialNumber,
+              routerOsVersion: device.routerOsVersion,
+              firmware: device.firmware,
+              cpu: device.cpu,
+              totalMemory: device.totalMemory?.toString() || null
+            };
+            
+            await storage.createDevice(newDevice);
+            console.log(`✅ Added new device: ${device.name} at ${device.ipAddress}`);
+            discoveredCount++;
+          }
+        } catch (error) {
+          console.error(`Error saving device at ${device.ipAddress}:`, error);
+        }
       }
     }
     
+    console.log(`Discovery complete. Found ${discoveredCount} MikroTik devices on subnet ${subnet}.`);
     return discoveredCount;
   }
   
   // This method would be implemented to check if a device at a specific IP
   // is a MikroTik device and return its basic information
   private async checkIfMikrotik(ipAddress: string): Promise<any> {
-    // Implementation to detect MikroTik devices on the network
-    try {
-      console.log(`Checking if ${ipAddress} is a MikroTik device...`);
-      
-      // Try to connect with default credentials
-      const client = new MikrotikClient(ipAddress, 'admin', '');
-      const connected = await client.connect();
-      
-      if (!connected) {
-        console.log(`Failed to connect to ${ipAddress} with default credentials`);
-        return null;
+    console.log(`Checking if ${ipAddress} is a MikroTik device...`);
+    
+    // Danh sách các cổng để thử
+    const ports = [8728, 8729, 80, 443];
+    // Danh sách tên người dùng thông thường
+    const usernames = ["admin", "user", "mikrotik"];
+    // Danh sách mật khẩu thông thường (bao gồm mật khẩu trống)
+    const passwords = ["", "admin", "mikrotik", "password", "routeros"];
+    
+    // Thử từng cổng
+    for (const port of ports) {
+      // Thử từng tổ hợp tên người dùng/mật khẩu
+      for (const username of usernames) {
+        for (const password of passwords) {
+          try {
+            console.log(`Trying ${ipAddress}:${port} with ${username}/${password ? '******' : 'blank password'}`);
+            
+            const client = new MikrotikClient(ipAddress, username, password);
+            client.setPort(port);
+            
+            // Thiết lập thời gian chờ ngắn để quá trình quét nhanh hơn
+            const connected = await client.connect(3000);
+            
+            if (connected) {
+              console.log(`✅ Connected to ${ipAddress}:${port} with ${username}/${password ? '******' : 'blank password'}`);
+              
+              // Thiết bị đã được xác thực - lấy thông tin
+              try {
+                const resources = await client.executeCommand("/system/resource/print");
+                let identity = null;
+                try {
+                  identity = await client.executeCommand("/system/identity/print");
+                } catch (identityError) {
+                  console.log(`Could not get identity: ${identityError.message}`);
+                }
+                
+                // Ngắt kết nối
+                await client.disconnect();
+                
+                const deviceName = identity && identity.length > 0 && identity[0].name 
+                  ? identity[0].name 
+                  : `MikroTik ${resources["board-name"] || 'Router'}`;
+                
+                // Trả về thông tin thiết bị với thông tin đăng nhập đã được xác minh
+                return {
+                  ipAddress,
+                  name: deviceName,
+                  username,
+                  password,
+                  model: resources["board-name"],
+                  serialNumber: resources["serial-number"] || null,
+                  routerOsVersion: resources.version,
+                  firmware: resources["factory-software"],
+                  cpu: resources["cpu-model"],
+                  totalMemory: resources["total-memory"],
+                  isDiscovered: true,
+                  port: port
+                };
+              } catch (cmdError) {
+                console.log(`Connected but failed to get device info: ${cmdError instanceof Error ? cmdError.message : 'Unknown error'}`);
+                await client.disconnect();
+              }
+            }
+          } catch (error) {
+            // Bỏ qua lỗi - tiếp tục với tổ hợp tiếp theo
+          }
+        }
       }
-      
-      // Get system identity and resources
-      const identity = await client.executeCommand('/system/identity/print');
-      const resources = await client.executeCommand('/system/resource/print');
-      
-      await client.disconnect();
-      
-      console.log(`Found MikroTik device at ${ipAddress}: ${identity.length > 0 ? identity[0].name : 'Unknown'}`);
-      
-      return {
-        ip: ipAddress,
-        identity: identity.length > 0 ? identity[0].name : null,
-        model: resources.length > 0 ? resources[0]['board-name'] : null,
-        serial: resources.length > 0 ? resources[0]['serial-number'] : null
-      };
-    } catch (error) {
-      // Not a MikroTik device or not accessible
-      console.log(`${ipAddress} is not a MikroTik device or not accessible`);
-      return null;
     }
+    
+    return null;
   }
 }
 
