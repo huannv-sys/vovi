@@ -190,122 +190,115 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
     );
   }
   
-  return (
-    <div className="bg-gray-900 rounded-lg shadow-md">
-      <div className="p-3 border-b border-gray-800 flex justify-between items-center">
-        <h3 className="text-sm font-medium text-gray-200">Network Traffic Advanced</h3>
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-auto">
-          <TabsList className="h-8">
-            <TabsTrigger value="graph" className="text-xs px-3 h-7">Graph</TabsTrigger>
-            <TabsTrigger value="details" className="text-xs px-3 h-7">Details</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
-      <TabsContent value="graph" className="m-0">
-        <div className="p-3 h-[280px]">
-          {trafficData.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-400">
-              No traffic data available
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={trafficData}
-                margin={{ top: 10, right: 5, left: 0, bottom: 20 }}
-              >
-                <defs>
-                  <linearGradient id="colorTraffic" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2196F3" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#2196F3" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                <XAxis 
-                  dataKey="time" 
-                  tick={{ fontSize: 10, fill: '#aaa' }} 
-                  axisLine={{ stroke: '#444' }}
-                  tickLine={{ stroke: '#444' }}
-                />
-                <YAxis 
-                  domain={[0, yAxisMax]} 
-                  tick={{ fontSize: 10, fill: '#aaa' }} 
-                  axisLine={{ stroke: '#444' }}
-                  tickLine={{ stroke: '#444' }}
-                  label={{ 
-                    value: 'Mb/s', 
-                    angle: -90, 
-                    position: 'insideLeft',
-                    style: { fontSize: 10, fill: '#aaa' } 
-                  }}
-                  ticks={getYAxisTicks()}
-                />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#333', 
-                    border: 'none', 
-                    borderRadius: '4px', 
-                    fontSize: '12px'
-                  }} 
-                />
-                <defs>
-                  <linearGradient id="colorDownload" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#4CAF50" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#4CAF50" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorUpload" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#FF5722" stopOpacity={0.8}/>
-                    <stop offset="95%" stopColor="#FF5722" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <Area 
-                  type="monotone" 
-                  dataKey="traffic" 
-                  stroke="#2196F3" 
-                  fillOpacity={1} 
-                  fill="url(#colorTraffic)" 
-                  name="Total Traffic (Mb/s)"
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="downloadRate" 
-                  stroke="#4CAF50" 
-                  fillOpacity={0.5} 
-                  fill="url(#colorDownload)" 
-                  name="Download (Mb/s)"
-                />
-                <Area 
-                  type="monotone" 
-                  dataKey="uploadRate" 
-                  stroke="#FF5722" 
-                  fillOpacity={0.5} 
-                  fill="url(#colorUpload)" 
-                  name="Upload (Mb/s)"
-                />
-                <Legend iconSize={8} wrapperStyle={{ fontSize: 10, color: '#ddd' }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-        <div className="p-3 border-t border-gray-800">
-          <div className="grid grid-cols-3 gap-2 text-xs">
-            <div className="flex items-center">
-              <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
-              <span className="text-blue-300">Total Traffic</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-              <span className="text-green-300">Download</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div>
-              <span className="text-orange-300">Upload</span>
+  // Render the appropriate content based on the active tab
+  const renderContent = () => {
+    if (activeTab === "graph") {
+      return (
+        <>
+          <div className="p-3 h-[280px]">
+            {trafficData.length === 0 ? (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                No traffic data available
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={trafficData}
+                  margin={{ top: 10, right: 5, left: 0, bottom: 20 }}
+                >
+                  <defs>
+                    <linearGradient id="colorTraffic" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#2196F3" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#2196F3" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                  <XAxis 
+                    dataKey="time" 
+                    tick={{ fontSize: 10, fill: '#aaa' }} 
+                    axisLine={{ stroke: '#444' }}
+                    tickLine={{ stroke: '#444' }}
+                  />
+                  <YAxis 
+                    domain={[0, yAxisMax]} 
+                    tick={{ fontSize: 10, fill: '#aaa' }} 
+                    axisLine={{ stroke: '#444' }}
+                    tickLine={{ stroke: '#444' }}
+                    label={{ 
+                      value: 'Mb/s', 
+                      angle: -90, 
+                      position: 'insideLeft',
+                      style: { fontSize: 10, fill: '#aaa' } 
+                    }}
+                    ticks={getYAxisTicks()}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#333', 
+                      border: 'none', 
+                      borderRadius: '4px', 
+                      fontSize: '12px'
+                    }} 
+                  />
+                  <defs>
+                    <linearGradient id="colorDownload" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#4CAF50" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#4CAF50" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorUpload" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#FF5722" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#FF5722" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <Area 
+                    type="monotone" 
+                    dataKey="traffic" 
+                    stroke="#2196F3" 
+                    fillOpacity={1} 
+                    fill="url(#colorTraffic)" 
+                    name="Total Traffic (Mb/s)"
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="downloadRate" 
+                    stroke="#4CAF50" 
+                    fillOpacity={0.5} 
+                    fill="url(#colorDownload)" 
+                    name="Download (Mb/s)"
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="uploadRate" 
+                    stroke="#FF5722" 
+                    fillOpacity={0.5} 
+                    fill="url(#colorUpload)" 
+                    name="Upload (Mb/s)"
+                  />
+                  <Legend iconSize={8} wrapperStyle={{ fontSize: 10, color: '#ddd' }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          <div className="p-3 border-t border-gray-800">
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              <div className="flex items-center">
+                <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+                <span className="text-blue-300">Total Traffic</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
+                <span className="text-green-300">Download</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 rounded-full bg-orange-500 mr-2"></div>
+                <span className="text-orange-300">Upload</span>
+              </div>
             </div>
           </div>
-        </div>
-      </TabsContent>
-
-      <TabsContent value="details" className="m-0">
+        </>
+      );
+    } else {
+      return (
         <div className="p-3">
           <div className="grid grid-cols-1 gap-4">
             {/* Current Traffic Card */}
@@ -412,7 +405,39 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
             </Card>
           </div>
         </div>
-      </TabsContent>
+      );
+    }
+  };
+
+  return (
+    <div className="bg-gray-900 rounded-lg shadow-md">
+      <div className="p-3 border-b border-gray-800 flex justify-between items-center">
+        <h3 className="text-sm font-medium text-gray-200">Network Traffic Advanced</h3>
+        <div className="inline-flex h-8 items-center justify-center rounded-md bg-gray-800 p-1 text-gray-400">
+          <button
+            className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 h-7 text-xs ${
+              activeTab === "graph" 
+              ? "bg-gray-700 text-gray-200" 
+              : "hover:bg-gray-700/50 hover:text-gray-300"
+            }`}
+            onClick={() => setActiveTab("graph")}
+          >
+            Graph
+          </button>
+          <button
+            className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 h-7 text-xs ${
+              activeTab === "details"
+              ? "bg-gray-700 text-gray-200"
+              : "hover:bg-gray-700/50 hover:text-gray-300"
+            }`}
+            onClick={() => setActiveTab("details")}
+          >
+            Details
+          </button>
+        </div>
+      </div>
+
+      {renderContent()}
     </div>
   );
 };
