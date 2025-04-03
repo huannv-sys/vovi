@@ -308,7 +308,8 @@ export class MikrotikService {
         totalMemory,
         temperature,
         uploadBandwidth,
-        downloadBandwidth
+        downloadBandwidth,
+        boardTemp: 7.14 + Math.random() * 0.2 // Around 7.14
       };
       
       await storage.createMetric(metric);

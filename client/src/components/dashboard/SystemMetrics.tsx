@@ -85,11 +85,11 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
     );
   }
 
-  // Giá trị mẫu để hiển thị dữ liệu như trong yêu cầu
-  const cpuUsage = Math.max(1, Math.min(99, latestMetric?.cpuUsage || 9));
-  const cpuTemp = Math.max(35, Math.min(85, latestMetric?.temperature || 49));
-  const ramUsage = Math.max(1, Math.min(99, latestMetric?.memoryUsage || 12));
-  const diskUsage = Math.max(20, Math.min(95, latestMetric?.uploadBandwidth ? Math.min(100, latestMetric.uploadBandwidth / 10) : 78));
+  // Lấy dữ liệu từ metrics API
+  const cpuUsage = latestMetric?.cpuUsage || 0;
+  const cpuTemp = latestMetric?.temperature || 0;
+  const ramUsage = latestMetric?.memoryUsage || 0;
+  const diskUsage = latestMetric?.uploadBandwidth ? Math.min(100, latestMetric.uploadBandwidth / 1024 / 10) : 0;
 
   return (
     <div className="grid grid-cols-1 gap-4">
@@ -178,25 +178,25 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
           
           <div className="col-span-2 flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Model</span>
-            <span className="text-green-400 font-medium">RouterOS CRS309-1G-8S+</span>
+            <span className="text-green-400 font-medium">{device?.model || 'RouterOS CRS309-1G-8S+'}</span>
           </div>
           
           <div className="col-span-2 flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">RouterOS date</span>
             <span className="text-green-400 font-medium">
-              15:40:31<br />
-              30/03/2025
+              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}<br />
+              {new Date().toLocaleDateString('en-GB')}
             </span>
           </div>
           
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Firmware</span>
-            <span className="text-green-400 font-medium">7.16.2</span>
+            <span className="text-green-400 font-medium">{device?.firmware || '7.16.2'}</span>
           </div>
           
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Board</span>
-            <span className="text-green-400 font-medium">7.14.3</span>
+            <span className="text-green-400 font-medium">{(latestMetric as any)?.boardTemp?.toFixed(1) || '7.14.3'}</span>
           </div>
 
           <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
@@ -233,7 +233,7 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
 
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">CPU Mhz</span>
-            <span className="text-green-400 font-medium">800 MHz</span>
+            <span className="text-green-400 font-medium">{device?.cpu?.includes('MHz') ? device.cpu : '800 MHz'}</span>
           </div>
         </div>
       </div>

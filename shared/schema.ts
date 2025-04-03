@@ -39,6 +39,7 @@ export const metrics = pgTable("metrics", {
   temperature: real("temperature"),
   uploadBandwidth: real("upload_bandwidth"),
   downloadBandwidth: real("download_bandwidth"),
+  boardTemp: real("board_temp"),
 });
 
 export const insertMetricSchema = createInsertSchema(metrics).omit({
