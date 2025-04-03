@@ -7,6 +7,8 @@ import Security from "@/pages/security";
 import Settings from "@/pages/settings";
 import PerformanceReports from "@/pages/reports";
 import EventHistory from "@/pages/events";
+import Wireless from "@/pages/wireless";
+import Capsman from "@/pages/capsman";
 import NotFound from "@/pages/not-found";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -19,6 +21,8 @@ function App() {
         <Route path="/devices" component={Devices} />
         <Route path="/alerts" component={Alerts} />
         <Route path="/network" component={Network} />
+        <Route path="/wireless" component={Wireless} />
+        <Route path="/capsman" component={Capsman} />
         <Route path="/security" component={Security} />
         <Route path="/settings" component={Settings} />
         <Route path="/reports" component={PerformanceReports} />

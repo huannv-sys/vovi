@@ -72,6 +72,21 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
               </svg>
               {!collapsed && "Network"}
             </Link>
+            <Link href="/wireless" className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${isActive('/wireless') ? 'bg-blue-900 text-blue-500 border-l-4 border-blue-500' : 'text-slate-300 hover:bg-slate-700'}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isActive('/wireless') ? 'text-blue-400' : 'text-slate-400'} ${collapsed ? 'mx-auto' : 'mr-3'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+                <polyline points="17 6 23 6 23 12" />
+              </svg>
+              {!collapsed && "Wireless"}
+            </Link>
+            <Link href="/capsman" className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${isActive('/capsman') ? 'bg-blue-900 text-blue-500 border-l-4 border-blue-500' : 'text-slate-300 hover:bg-slate-700'}`}>
+              <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isActive('/capsman') ? 'text-blue-400' : 'text-slate-400'} ${collapsed ? 'mx-auto' : 'mr-3'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                <path d="M2 17l10 5 10-5" />
+                <path d="M2 12l10 5 10-5" />
+              </svg>
+              {!collapsed && "CAPsMAN"}
+            </Link>
             <Link href="/security" className={`flex items-center px-3 py-2 text-sm font-medium rounded-md ${isActive('/security') ? 'bg-blue-900 text-blue-500 border-l-4 border-blue-500' : 'text-slate-300 hover:bg-slate-700'}`}>
               <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${isActive('/security') ? 'text-blue-400' : 'text-slate-400'} ${collapsed ? 'mx-auto' : 'mr-3'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
