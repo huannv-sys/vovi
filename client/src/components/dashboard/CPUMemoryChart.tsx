@@ -23,7 +23,7 @@ const CPUMemoryChart: React.FC<CPUMemoryChartProps> = ({ deviceId }) => {
   
   // Fetch metrics data
   const { data: metrics, isLoading } = useQuery<Metric[]>({ 
-    queryKey: deviceId ? [`/api/devices/${deviceId}/metrics`] : null,
+    queryKey: deviceId ? [`/api/devices/${deviceId}/metrics`] : ['/api/devices/metrics/none'],
     enabled: !!deviceId,
   });
   
@@ -58,24 +58,24 @@ const CPUMemoryChart: React.FC<CPUMemoryChartProps> = ({ deviceId }) => {
   const chartData = formatChartData(metrics);
   
   return (
-    <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+    <div className="bg-slate-800 rounded-lg p-4 border border-slate-600">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-medium text-neutral-dark">CPU & Memory Usage</h3>
+        <h3 className="font-medium text-white">CPU & Memory Usage</h3>
         <div className="flex space-x-2">
           <button 
-            className={`px-2 py-1 text-xs font-medium rounded ${timeRange === "1H" ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`px-2 py-1 text-xs font-medium rounded ${timeRange === "1H" ? 'bg-blue-600 text-white' : 'text-slate-300 bg-slate-700 hover:bg-slate-600'}`}
             onClick={() => setTimeRange("1H")}
           >
             1H
           </button>
           <button 
-            className={`px-2 py-1 text-xs font-medium rounded ${timeRange === "24H" ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`px-2 py-1 text-xs font-medium rounded ${timeRange === "24H" ? 'bg-blue-600 text-white' : 'text-slate-300 bg-slate-700 hover:bg-slate-600'}`}
             onClick={() => setTimeRange("24H")}
           >
             24H
           </button>
           <button 
-            className={`px-2 py-1 text-xs font-medium rounded ${timeRange === "7D" ? 'bg-primary text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            className={`px-2 py-1 text-xs font-medium rounded ${timeRange === "7D" ? 'bg-blue-600 text-white' : 'text-slate-300 bg-slate-700 hover:bg-slate-600'}`}
             onClick={() => setTimeRange("7D")}
           >
             7D
@@ -119,14 +119,14 @@ const CPUMemoryChart: React.FC<CPUMemoryChartProps> = ({ deviceId }) => {
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="flex items-center justify-center h-full text-gray-500">
-            No data available
+          <div className="flex items-center justify-center h-full text-slate-400">
+            Đang tải dữ liệu...
           </div>
         )}
       </div>
-      <div className="flex items-center justify-center mt-3 text-sm text-gray-500">
+      <div className="flex items-center justify-center mt-3 text-sm text-slate-300">
         <div className="flex items-center mr-4">
-          <div className="w-3 h-3 rounded-full bg-primary mr-1"></div>
+          <div className="w-3 h-3 rounded-full bg-blue-500 mr-1"></div>
           <span>CPU</span>
         </div>
         <div className="flex items-center">

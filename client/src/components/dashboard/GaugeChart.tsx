@@ -53,9 +53,9 @@ const GaugeChart: React.FC<GaugeChartProps> = ({
   const center = viewBoxSize / 2;
   
   return (
-    <div className="gauge-chart flex flex-col items-center justify-center p-2 bg-gray-900 rounded-lg overflow-hidden relative">
+    <div className="gauge-chart flex flex-col items-center justify-center p-2 bg-slate-800 rounded-lg overflow-hidden relative border border-slate-600">
       <div className="text-center mb-1">
-        <h3 className="text-sm font-medium text-gray-200">{title}</h3>
+        <h3 className="text-sm font-medium text-white">{title}</h3>
       </div>
       
       <div className="relative">
@@ -69,7 +69,7 @@ const GaugeChart: React.FC<GaugeChartProps> = ({
           <path
             d={`M ${center} ${center} m 0 ${-radius} a ${radius} ${radius} 0 1 1 -0.01 0 z`}
             fill="none"
-            stroke="#333"
+            stroke="#334155"
             strokeWidth={strokeWidth}
             strokeDasharray="540 540"
             strokeDashoffset="142"
@@ -103,8 +103,8 @@ const GaugeChart: React.FC<GaugeChartProps> = ({
         </svg>
         
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 translate-y-1 text-center">
-          <span className="text-4xl font-bold text-green-400">{value}</span>
-          <span className="text-lg text-green-300">{unit}</span>
+          <span className="text-3xl font-bold text-white">{value}</span>
+          <span className="text-lg text-blue-300">{unit}</span>
         </div>
       </div>
     </div>
