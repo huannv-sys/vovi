@@ -235,6 +235,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Cập nhật số lượng thiết bị tối đa được polling cùng lúc
+  router.post("/scheduler/max-concurrent-devices", async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({ count: z.number().min(1) });
+      const { count } = schema.parse(req.body);
+      
+      schedulerService.setMaxConcurrentDevices(count);
+      res.json({ message: `Max concurrent devices updated to ${count}` });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid device count", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update max concurrent devices" });
+    }
+  });
+  
+  // Lấy trạng thái polling của các thiết bị
+  router.get("/scheduler/device-status", async (_req: Request, res: Response) => {
+    try {
+      const deviceStatus = schedulerService.getDevicePollingStatus();
+      return res.status(200).json(deviceStatus);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to get device polling status" });
+    }
+  });
+  
+  // Tìm kiếm thiết bị mới trên mạng
+  router.post("/devices/discover", async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({ subnet: z.string() });
+      const { subnet } = schema.parse(req.body);
+      
+      const discoveredCount = await mikrotikService.discoverDevices(subnet);
+      return res.status(200).json({ 
+        message: `Network discovery completed`, 
+        discoveredCount 
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid subnet format", errors: error.errors });
+      }
+      console.error("Error during network discovery:", error);
+      return res.status(500).json({ message: "Failed to discover devices on network" });
+    }
+  });
+
   // Register the router with the prefix
   app.use("/api", router);
 
