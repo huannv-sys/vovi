@@ -181,8 +181,14 @@ const { exec } = require('child_process');
 exec('npm run dev', { stdio: 'inherit' });
 EOF
 
-  # Khởi động ứng dụng với PM2
-  pm2 start start.js --name mikrotik-monitor || error "Không thể khởi động ứng dụng với PM2"
+  # Kiểm tra và khởi động ứng dụng với PM2
+  if pm2 list | grep -q "mikrotik-monitor"; then
+    log "Ứng dụng đã chạy trên PM2, khởi động lại..."
+    pm2 restart mikrotik-monitor || error "Không thể khởi động lại ứng dụng với PM2"
+  else
+    log "Khởi động ứng dụng mới với PM2..."
+    pm2 start start.js --name mikrotik-monitor || error "Không thể khởi động ứng dụng với PM2"
+  fi
   
   # Cấu hình PM2 khởi động cùng hệ thống
   pm2 save
