@@ -100,6 +100,12 @@ export class MemStorage implements IStorage {
       cpu: "Dual-Core 88F6820",
       totalMemory: "1024 MB",
       storage: "16 MB Flash",
+    }).then(device => {
+      // Kích hoạt CAPsMAN và Wireless cho thiết bị ban đầu
+      this.updateDevice(device.id, {
+        hasCAPsMAN: true,
+        hasWireless: true
+      });
     });
   }
 
