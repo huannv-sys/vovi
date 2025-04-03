@@ -111,10 +111,8 @@ const EventHistoryPage = () => {
     if (alerts && alerts.length > 0) {
       const alertEvents = alerts.map(alert => {
         // Normalize the severity to match expected values
-        let normalizedSeverity = alertSeverity.INFO; // Default
-        if (alert.severity === alertSeverity.WARNING || alert.severity === alertSeverity.ERROR) {
-          normalizedSeverity = alert.severity;
-        }
+        // Use any severity string value, not restricting to the enum
+        const normalizedSeverity = alert.severity || alertSeverity.INFO;
         
         return {
           id: 1000 + alert.id, // Avoid ID collision with sample data
