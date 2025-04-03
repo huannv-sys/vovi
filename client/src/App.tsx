@@ -5,6 +5,8 @@ import Alerts from "@/pages/alerts";
 import Network from "@/pages/network";
 import Security from "@/pages/security";
 import Settings from "@/pages/settings";
+import PerformanceReports from "@/pages/reports";
+import EventHistory from "@/pages/events";
 import NotFound from "@/pages/not-found";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -13,11 +15,14 @@ function App() {
     <AppLayout>
       <Switch>
         <Route path="/" component={Dashboard} />
+        <Route path="/dashboard" component={Dashboard} />
         <Route path="/devices" component={Devices} />
         <Route path="/alerts" component={Alerts} />
         <Route path="/network" component={Network} />
         <Route path="/security" component={Security} />
         <Route path="/settings" component={Settings} />
+        <Route path="/reports" component={PerformanceReports} />
+        <Route path="/events" component={EventHistory} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

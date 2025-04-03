@@ -125,8 +125,8 @@ const NetworkPage = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {interfaces.map((iface) => {
-                      const utilization = iface.speed ? calculateUtilization(iface.rxBytes, iface.txBytes, iface.speed) : 0;
+                    {interfaces.map((iface: Interface) => {
+                      const utilization = iface.speed ? calculateUtilization(iface.rxBytes || 0, iface.txBytes || 0, iface.speed) : 0;
                       
                       return (
                         <TableRow key={iface.id}>
@@ -139,8 +139,8 @@ const NetworkPage = () => {
                           <TableCell>{iface.type || "Ethernet"}</TableCell>
                           <TableCell>{iface.speed || "Unknown"}</TableCell>
                           <TableCell>{iface.macAddress || "—"}</TableCell>
-                          <TableCell>{formatBytes(iface.txBytes)}</TableCell>
-                          <TableCell>{formatBytes(iface.rxBytes)}</TableCell>
+                          <TableCell>{formatBytes(iface.txBytes || 0)}</TableCell>
+                          <TableCell>{formatBytes(iface.rxBytes || 0)}</TableCell>
                           <TableCell>
                             <div className="w-full flex items-center gap-2">
                               <Progress value={utilization} className="h-2" />
