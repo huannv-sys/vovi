@@ -1,0 +1,124 @@
+# Cấu trúc ứng dụng giám sát thiết bị Mikrotik với ISD
+
+## 1. Kiến trúc tổng thể
+
+### 1.1 Mô hình triển khai
+- **Back-end server**: Xử lý logic nghiệp vụ chính
+- **Front-end client**: Giao diện người dùng
+- **Database server**: Lưu trữ dữ liệu giám sát và cấu hình
+- **Agent collector**: Thu thập dữ liệu từ các thiết bị Mikrotik
+
+### 1.2 Công nghệ đề xuất
+- **Back-end**: Node.js/Python/Java
+- **Front-end**: React/Angular/Vue.js
+- **Database**: MongoDB/PostgreSQL/InfluxDB (phù hợp cho time-series data)
+- **Giao thức kết nối**: SNMP, API Mikrotik (RouterOS API), SSH
+
+## 2. Các module chính
+
+### 2.1 Module thu thập dữ liệu
+- **SNMP collector**: Thu thập thông tin qua SNMP
+- **RouterOS API client**: Kết nối API của Mikrotik
+- **SSH connector**: Thực thi lệnh qua SSH
+- **Scheduler**: Lập lịch thu thập dữ liệu định kỳ
+
+### 2.2 Module xử lý dữ liệu
+- **Data parser**: Phân tích dữ liệu thô từ thiết bị
+- **Data normalizer**: Chuẩn hóa dữ liệu
+- **Alert analyzer**: Phân tích dữ liệu để phát hiện bất thường
+
+### 2.3 Module lưu trữ
+- **Time-series database**: Lưu trữ dữ liệu giám sát theo thời gian
+- **Configuration database**: Lưu trữ cấu hình thiết bị và hệ thống
+- **Alert database**: Lưu trữ cảnh báo
+
+### 2.4 Module giao diện người dùng
+- **Dashboard**: Hiển thị tổng quan về trạng thái hệ thống
+- **Device management**: Quản lý thiết bị Mikrotik
+- **Alert management**: Quản lý và cấu hình cảnh báo
+- **Report generator**: Tạo báo cáo
+
+### 2.5 Module ISD (Internet Security Device)
+- **Traffic analyzer**: Phân tích lưu lượng mạng
+- **Threat detection**: Phát hiện các mối đe dọa
+- **Firewall monitor**: Giám sát và quản lý firewall
+- **VPN monitor**: Giám sát kết nối VPN
+
+## 3. Các chức năng giám sát
+
+### 3.1 Giám sát cơ bản
+- **CPU/Memory usage**: Sử dụng CPU và bộ nhớ
+- **Interface status**: Trạng thái các cổng mạng
+- **Bandwidth utilization**: Sử dụng băng thông
+- **Device temperature**: Nhiệt độ thiết bị
+- **Uptime**: Thời gian hoạt động
+
+### 3.2 Giám sát mạng
+- **Traffic flow analysis**: Phân tích luồng lưu lượng
+- **Packet loss**: Mất gói tin
+- **Latency**: Độ trễ
+- **Connection tracking**: Theo dõi các kết nối
+
+### 3.3 Giám sát bảo mật
+- **Failed login attempts**: Nỗ lực đăng nhập thất bại
+- **Firewall rule hits**: Số lần hit luật firewall
+- **Port scanning detection**: Phát hiện quét cổng
+- **DDoS detection**: Phát hiện tấn công DDoS
+
+### 3.4 Giám sát dịch vụ
+- **DHCP server status**: Trạng thái DHCP
+- **DNS cache statistics**: Thống kê DNS cache
+- **Hotspot users**: Người dùng hotspot
+- **PPPoE sessions**: Phiên PPPoE
+
+## 4. Cơ chế cảnh báo
+
+### 4.1 Định nghĩa cảnh báo
+- **Threshold-based alerts**: Cảnh báo dựa trên ngưỡng
+- **Anomaly detection**: Phát hiện bất thường
+- **Event correlation**: Tương quan sự kiện
+
+### 4.2 Phương thức thông báo
+- **Email notifications**: Thông báo qua email
+- **SMS alerts**: Cảnh báo qua SMS
+- **Push notifications**: Thông báo đẩy
+- **Webhook integration**: Tích hợp webhook
+
+## 5. Reporting và Analytics
+
+### 5.1 Báo cáo
+- **Performance reports**: Báo cáo hiệu năng
+- **Security incident reports**: Báo cáo sự cố bảo mật
+- **Compliance reports**: Báo cáo tuân thủ
+- **Capacity planning reports**: Báo cáo quy hoạch năng lực
+
+### 5.2 Analytics
+- **Trend analysis**: Phân tích xu hướng
+- **Predictive analytics**: Phân tích dự đoán
+- **Bandwidth usage patterns**: Mẫu sử dụng băng thông
+- **Security analytics**: Phân tích bảo mật
+
+## 6. Bảo mật hệ thống
+
+### 6.1 Xác thực và phân quyền
+- **Role-based access control**: Kiểm soát truy cập dựa trên vai trò
+- **Multi-factor authentication**: Xác thực đa yếu tố
+- **API authentication**: Xác thực API
+
+### 6.2 Bảo mật dữ liệu
+- **Encryption**: Mã hóa
+- **Secure communication**: Giao tiếp an toàn
+- **Audit logging**: Ghi nhật ký kiểm toán
+
+## 7. Khả năng mở rộng
+
+### 7.1 Kiến trúc mở rộng
+- **Horizontal scaling**: Mở rộng theo chiều ngang
+- **Distributed architecture**: Kiến trúc phân tán
+- **Load balancing**: Cân bằng tải
+
+### 7.2 Tích hợp
+- **RESTful API**: API RESTful
+- **SNMP traps receiver**: Bộ nhận SNMP traps
+- **Syslog integration**: Tích hợp Syslog
+- **Third-party integration**: Tích hợp bên thứ ba
