@@ -19,7 +19,7 @@ class MikrotikClient {
   private username: string;
   private password: string;
   private client: rosjs.RouterOSClient | null = null;
-  private useMockData: boolean = true; // Set to false when ready for production
+  private useMockData: boolean = false; // Set to false to use real data from RouterOS devices
   
   constructor(ipAddress: string, username: string, password: string) {
     this.ipAddress = ipAddress;
@@ -91,10 +91,22 @@ class MikrotikClient {
     // If using real connection with RouterOS client
     if (!this.useMockData && this.client) {
       try {
-        const result = await this.client.write(command, params);
+        console.log(`Executing real command: ${command}`);
+        // Convert command like "/system/resource/print" to ["system", "resource", "print"]
+        const commandParts = command.split('/').filter(Boolean);
+        
+        // RouterOS-client uses query method instead of write
+        const result = await this.client.query({
+          command: commandParts,
+          params: params.length > 0 ? params[0] : {}
+        }).promise;
+        
+        console.log(`Got result from real device for ${command}:`, result);
         return result;
       } catch (error) {
         console.error(`Failed to execute command ${command}:`, error);
+        // Nếu kết nối thất bại, đặt this.connected thành false để thử kết nối lại
+        this.connected = false;
         throw error;
       }
     }
@@ -474,8 +486,8 @@ export class MikrotikService {
         timestamp: new Date(),
         cpuUsage,
         memoryUsage,
-        temperature,
-        uptime
+        totalMemory,
+        temperature
       };
       
       await storage.createMetric(metric);
@@ -503,14 +515,13 @@ export class MikrotikService {
     severity: AlertSeverity, 
     title: string, 
     message: string
-  ): Promise<Alert> {
+  ): Promise<any> {
     const alert: InsertAlert = {
       deviceId,
       timestamp: new Date(),
       severity,
-      title,
       message,
-      acknowledged: false
+      source: title // use title as source since title doesn't exist in schema
     };
     
     return await storage.createAlert(alert);
