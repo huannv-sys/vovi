@@ -37,13 +37,18 @@ export const metrics = pgTable("metrics", {
   id: serial("id").primaryKey(),
   deviceId: integer("device_id").notNull(),
   timestamp: timestamp("timestamp").notNull().defaultNow(),
-  cpuUsage: real("cpu_usage"),
-  memoryUsage: real("memory_usage"),
-  totalMemory: real("total_memory"),
+  cpuLoad: real("cpu_load"),            // Renamed from cpuUsage to match router API
+  memoryUsed: real("memory_used"),      // Renamed from memoryUsage to match router API
+  uptime: text("uptime"),               // Added to store device uptime as text
   temperature: real("temperature"),
+  totalMemory: real("total_memory"),
   uploadBandwidth: real("upload_bandwidth"),
   downloadBandwidth: real("download_bandwidth"),
   boardTemp: real("board_temp"),
+  
+  // Legacy fields for backward compatibility
+  cpuUsage: real("cpu_usage"),
+  memoryUsage: real("memory_usage"),
 });
 
 export const insertMetricSchema = createInsertSchema(metrics).omit({

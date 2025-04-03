@@ -51,8 +51,8 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
     if (latestMetric) {
       // Log metric mới nhất để debug
       console.log("Metric mới nhất:", JSON.stringify(latestMetric));
-      console.log("CPU Usage:", latestMetric.cpuUsage);
-      console.log("Memory Usage:", latestMetric.memoryUsage);
+      console.log("CPU Load:", latestMetric.cpuLoad || latestMetric.cpuUsage);
+      console.log("Memory Used:", latestMetric.memoryUsed || latestMetric.memoryUsage);
       console.log("Temperature:", latestMetric.temperature);
     }
   }, [latestMetric]);
@@ -67,8 +67,8 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
     
     return last30Metrics.map(metric => ({
       time: new Date(metric.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      cpu: metric.cpuUsage || 0,
-      memory: metric.memoryUsage || 0,
+      cpu: metric.cpuLoad || metric.cpuUsage || 0,
+      memory: metric.memoryUsed ? (metric.memoryUsed / (metric.totalMemory || 4294967296) * 100) : (metric.memoryUsage || 0),
       disk: metric.downloadBandwidth ? Math.min(100, metric.downloadBandwidth / 1024 / 1024) : 0
     }));
   };
@@ -101,10 +101,18 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
     );
   }
 
-  // Lấy và xử lý dữ liệu từ metrics API
-  const cpuUsage = latestMetric?.cpuUsage !== undefined ? Number(latestMetric.cpuUsage) : 0;
+  // Lấy và xử lý dữ liệu từ metrics API - bổ sung hỗ trợ các trường cũ và mới
+  const cpuUsage = latestMetric?.cpuLoad !== undefined ? Number(latestMetric.cpuLoad) : 
+                  (latestMetric?.cpuUsage !== undefined ? Number(latestMetric.cpuUsage) : 0);
   const cpuTemp = latestMetric?.temperature !== undefined ? Number(latestMetric.temperature) : 0;
-  const ramUsage = latestMetric?.memoryUsage !== undefined ? Number(latestMetric.memoryUsage) : 0;
+  
+  // Tính toán RAM usage dựa trên memoryUsed và totalMemory nếu có
+  let ramUsage = 0;
+  if (latestMetric?.memoryUsed !== undefined && latestMetric?.totalMemory) {
+    ramUsage = Math.round((Number(latestMetric.memoryUsed) / Number(latestMetric.totalMemory)) * 100);
+  } else if (latestMetric?.memoryUsage !== undefined) {
+    ramUsage = Number(latestMetric.memoryUsage);
+  }
   
   // Tính toán disk usage từ bandwidth - đảm bảo là số
   let diskUsage = 0;
