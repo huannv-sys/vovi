@@ -19,7 +19,7 @@ class MikrotikClient {
   private username: string;
   private password: string;
   private client: rosjs.RouterOSClient | null = null;
-  private useMockData: boolean = true; // Set to true to use mock data during testing
+  private useMockData: boolean = false; // Set to false to connect to real Mikrotik devices
   
   constructor(ipAddress: string, username: string, password: string) {
     this.ipAddress = ipAddress;
@@ -821,13 +821,9 @@ export class MikrotikService {
   }
   
   public async discoverDevices(subnet: string): Promise<number> {
-    // In a real implementation, this would scan the network using an actual API
-    // and identify Mikrotik devices through RouterOS API or SNMP
+    // Implementation to scan the network for MikroTik devices
     console.log(`Scanning subnet ${subnet} for Mikrotik devices...`);
     
-    // TODO: Replace with actual network scan implementation
-    // Example implementation with real discovery:
-    /*
     let discoveredCount = 0;
     
     // Parse subnet (e.g. "192.168.1.0/24")
@@ -869,6 +865,7 @@ export class MikrotikService {
           isOnline: true,
           lastSeen: new Date(),
           hasCAPsMAN: false, // Will be updated later
+          hasWireless: false, // Will be updated later
           tags: ['auto-discovered']
         });
         discoveredCount++;
@@ -878,26 +875,21 @@ export class MikrotikService {
     }
     
     return discoveredCount;
-    */
-    
-    // For testing/demo, simulate discovery of 2-4 devices
-    const discoveryCount = Math.floor(Math.random() * 3) + 2;
-    console.log(`Discovered ${discoveryCount} devices`);
-    return discoveryCount;
   }
   
   // This method would be implemented to check if a device at a specific IP
   // is a MikroTik device and return its basic information
   private async checkIfMikrotik(ipAddress: string): Promise<any> {
-    // TODO: Implement real device detection
-    // Example implementation:
-    /*
+    // Implementation to detect MikroTik devices on the network
     try {
+      console.log(`Checking if ${ipAddress} is a MikroTik device...`);
+      
       // Try to connect with default credentials
       const client = new MikrotikClient(ipAddress, 'admin', '');
       const connected = await client.connect();
       
       if (!connected) {
+        console.log(`Failed to connect to ${ipAddress} with default credentials`);
         return null;
       }
       
@@ -907,6 +899,8 @@ export class MikrotikService {
       
       await client.disconnect();
       
+      console.log(`Found MikroTik device at ${ipAddress}: ${identity.length > 0 ? identity[0].name : 'Unknown'}`);
+      
       return {
         ip: ipAddress,
         identity: identity.length > 0 ? identity[0].name : null,
@@ -915,11 +909,9 @@ export class MikrotikService {
       };
     } catch (error) {
       // Not a MikroTik device or not accessible
+      console.log(`${ipAddress} is not a MikroTik device or not accessible`);
       return null;
     }
-    */
-    
-    return null;
   }
 }
 
