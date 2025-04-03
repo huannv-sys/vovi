@@ -134,9 +134,9 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
                   {iface.name}
                 </TableCell>
                 <TableCell className="text-xs py-2">
-                  <Badge variant={iface.status === 'up' ? 'default' : 'destructive'} className="text-xs">
+                  <div className={`w-full py-1 px-4 text-center text-white text-xs rounded ${iface.status === 'up' ? 'bg-green-600' : 'bg-red-600'}`}>
                     {iface.status === 'up' ? 'UP' : 'DOWN'}
-                  </Badge>
+                  </div>
                 </TableCell>
                 <TableCell className="text-gray-300 text-xs py-2">
                   {Math.floor(Math.random() * 3)}

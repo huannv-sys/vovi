@@ -412,7 +412,7 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
   return (
     <div className="bg-gray-900 rounded-lg shadow-md">
       <div className="p-3 border-b border-gray-800 flex justify-between items-center">
-        <h3 className="text-sm font-medium text-gray-200">Network Traffic Advanced</h3>
+        <h3 className="text-sm font-medium text-gray-200">Network Traffic Basic</h3>
         <div className="inline-flex h-8 items-center justify-center rounded-md bg-gray-800 p-1 text-gray-400">
           <button
             className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 h-7 text-xs ${
