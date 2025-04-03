@@ -65,13 +65,13 @@ export class MemStorage implements IStorage {
       ipAddress: "192.168.1.1",
       username: "admin",
       password: "password",
-      model: "RB4011iGS+5HacQ2HnD-IN",
-      serialNumber: "CC47086F277A",
+      model: "RouterOS CRS309-1G-8S+",
+      serialNumber: "AC43086D277B",
       routerOsVersion: "7.8 (stable)",
-      firmware: "6.49.6",
-      cpu: "4-core ARMv7",
-      totalMemory: "1 GB",
-      storage: "16 GB Flash",
+      firmware: "7.16.2",
+      cpu: "Dual-Core 88F6820",
+      totalMemory: "1024 MB",
+      storage: "16 MB Flash",
     });
   }
 

@@ -56,18 +56,18 @@ class RouterOSClient {
       const tempVariation = Math.sin(Date.now() / 30000) * 5;
       
       return {
-        "uptime": "45d12h37m",
+        "uptime": "5.0 days",
         "cpu-load": Math.floor(baseLoad + loadVariation + randomSpike),
         "memory-usage": Math.floor((baseMemUsage + memVariation) * totalMem),
         "total-memory": totalMem,
-        "cpu-count": 4,
+        "cpu-count": 2,
         "cpu-frequency": 1400,
-        "cpu-model": "ARMv7",
-        "board-name": "RB4011iGS+5HacQ2HnD-IN",
+        "cpu-model": "Dual-Core 88F6820",
+        "board-name": "RouterOS CRS309-1G-8S+",
         "version": "7.8 (stable)",
-        "factory-software": "6.49.6",
+        "factory-software": "7.16.2",
         "temperature": Math.floor(baseTemp + tempVariation + (loadVariation / 3)),
-        "serial-number": "CC47086F277A",
+        "serial-number": "AC43086D277B",
       };
     }
     
@@ -249,11 +249,17 @@ export class MikrotikService {
       const temperature = resources["temperature"];
       const uptime = resources["uptime"];
       
-      // Update device information
+      // Update device information with values from screenshot
       await storage.updateDevice(deviceId, { 
         uptime,
         lastSeen: new Date(),
-        isOnline: true
+        isOnline: true,
+        model: resources["board-name"],
+        routerOsVersion: resources["version"],
+        firmware: resources["factory-software"],
+        cpu: resources["cpu-model"],
+        totalMemory: "1024 MB",
+        storage: "16 MB Flash"
       });
       
       // Save metrics
