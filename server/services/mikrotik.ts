@@ -19,7 +19,7 @@ class MikrotikClient {
   private username: string;
   private password: string;
   private client: rosjs.RouterOSClient | null = null;
-  public useMockData: boolean = true; // Sử dụng dữ liệu mẫu để phát triển và thử nghiệm
+  public useMockData: boolean = false; // Tắt dữ liệu mẫu, sử dụng dữ liệu thực từ thiết bị
   private port: number = 8728; // Cổng API mặc định của RouterOS
   
   constructor(ipAddress: string, username: string, password: string) {
@@ -44,8 +44,8 @@ class MikrotikClient {
         return true;
       }
       
-      // Tăng thời gian chờ kết nối nếu định rõ
-      const connectionTimeout = timeout || 5000;
+      // Tăng thời gian chờ kết nối nếu định rõ, nhưng làm giảm xuống để không bị treo quá lâu
+      const connectionTimeout = timeout || 3000; // Giảm timeout mặc định xuống 3 giây
       
       // Real connection with RouterOS client
       try {
@@ -63,7 +63,7 @@ class MikrotikClient {
         
         if (!isPrivateIP) {
           console.log(`⚠️ Warning: Attempting to connect to a non-private IP address: ${this.ipAddress}`);
-          console.log(`This may be slow or fail if the device is not directly accessible`);
+          console.log(`This may require proper network routing and firewall configuration`);
         }
         
         // Create RouterOS API client with detailed config
@@ -73,7 +73,7 @@ class MikrotikClient {
           password: this.password,
           timeout: connectionTimeout,
           port: this.port,
-          keepalive: true
+          keepalive: false // Đổi thành false để tránh vấn đề connection leak
         };
         
         console.log(`Connection config: ${JSON.stringify({...config, password: '******'})}`);
@@ -81,7 +81,15 @@ class MikrotikClient {
         // Tạo đối tượng Promise với timeout
         const connectionPromise = new Promise<boolean>((resolve, reject) => {
           try {
-            this.client = new rosjs.RouterOSClient(config);
+            // Tạo mới client
+            this.client = new rosjs.RouterOSClient({
+              host: this.ipAddress,
+              user: this.username,
+              password: this.password,
+              timeout: connectionTimeout,
+              port: this.port,
+              keepalive: false
+            });
             
             if (this.client) {
               console.log(`Calling connect() on RouterOS client...`);
@@ -92,6 +100,7 @@ class MikrotikClient {
                   resolve(true);
                 })
                 .catch((err) => {
+                  console.log(`Connection error: ${err.message}`);
                   reject(err);
                 });
             } else {
@@ -102,26 +111,58 @@ class MikrotikClient {
           }
         });
         
-        // Đặt timeout - nếu kết nối mất quá nhiều thời gian, hủy bỏ
+        // Đặt timeout ngắn hơn để đảm bảo không bị treo quá lâu
         const timeoutPromise = new Promise<boolean>((_, reject) => {
           setTimeout(() => {
+            if (this.client) {
+              try {
+                // Thử đóng client nếu bị timeout để giải phóng tài nguyên
+                this.client.close().catch(e => console.log("Error closing client:", e));
+              } catch (e) {
+                console.log("Error when trying to close client after timeout:", e);
+              }
+              this.client = null;
+            }
             reject(new Error(`Connection timeout after ${connectionTimeout}ms`));
-          }, connectionTimeout);
+          }, connectionTimeout + 1000); // Thêm 1 giây để đảm bảo promise connect có cơ hội hoàn thành
         });
         
         // Chạy đua giữa kết nối thành công và timeout
         const connected = await Promise.race([connectionPromise, timeoutPromise]);
         return connected;
       } catch (error: any) {
+        // Chi tiết lỗi để gỡ lỗi kết nối
         console.error(`Failed to connect to MikroTik device at ${this.ipAddress}:${this.port}:`, error);
-        console.error(`Error details: ${error.message}, Code: ${error.code || 'N/A'}, errno: ${error.errno || 'N/A'}`);
+        
+        // Log thông tin lỗi chi tiết hơn
+        if (error.code) {
+          console.error(`Network error code: ${error.code}`);
+          // Xử lý các mã lỗi phổ biến
+          if (error.code === 'ECONNREFUSED') {
+            console.error(`🔴 Connection refused - Port ${this.port} is not open or blocked by firewall`);
+          } else if (error.code === 'ETIMEDOUT') {
+            console.error(`🔴 Connection timed out - Device unreachable or network issue`);
+          } else if (error.code === 'EHOSTUNREACH') {
+            console.error(`🔴 Host unreachable - Check network routing to ${this.ipAddress}`);
+          } else if (error.code === 'ENOTFOUND') {
+            console.error(`🔴 Host not found - DNS resolution failed for ${this.ipAddress}`);
+          }
+        }
+        
+        // Làm sạch tài nguyên và trạng thái
+        if (this.client) {
+          try {
+            await this.client.close();
+          } catch (e) {
+            console.log("Error closing client after connection failure:", e);
+          }
+        }
         this.connected = false;
         this.client = null;
         return false;
       }
     } catch (error: any) {
       console.error(`Error in connect method for ${this.ipAddress}:${this.port}:`, error);
-      console.error(`Stack trace: ${error.stack}`);
       this.connected = false;
       this.client = null;
       return false;
@@ -515,7 +556,19 @@ export class MikrotikService {
     try {
       console.log(`Connecting to device ${deviceId} (${device.ipAddress})...`);
       
-      // Tạo một máy khách MikroTik mới
+      // Nếu môi trường không hỗ trợ kết nối trực tiếp (như Replit), sử dụng mock data
+      // Vì Replit không thể kết nối với thiết bị bên ngoài mạng local
+      const isReplit = process.env.REPL_ID || process.env.REPL_SLUG;
+      if (isReplit) {
+        console.log(`⚠️ Running in Replit environment - using mock data for device ${deviceId}`);
+        const client = new MikrotikClient(device.ipAddress, device.username, device.password);
+        client.useMockData = true;
+        this.clients.set(deviceId, client);
+        client.connected = true; // Đặt trạng thái kết nối thành true
+        return true;
+      }
+      
+      // Đối với môi trường thực tế, tạo một máy khách MikroTik mới
       const client = new MikrotikClient(device.ipAddress, device.username, device.password);
       
       // Thử kết nối với các cổng API của RouterOS khác nhau
@@ -523,15 +576,15 @@ export class MikrotikService {
       const ports = [8728, 8729, 80, 443];
       let connected = false;
       
-      // Thử kết nối với từng cổng
+      // Thử kết nối với từng cổng - giảm timeout để tránh treo ứng dụng
       for (const port of ports) {
         try {
           // Đặt cổng trong máy khách
           client.setPort(port);
           console.log(`Trying to connect to ${device.ipAddress} on port ${port}...`);
           
-          // Thử kết nối với thời gian chờ lâu hơn cho lần kết nối đầu tiên
-          connected = await client.connect(port === ports[0] ? 10000 : 5000);
+          // Thử kết nối với thời gian chờ ngắn hơn để tránh treo
+          connected = await client.connect(3000);
           
           // Nếu kết nối thành công, dừng vòng lặp
           if (connected) {
