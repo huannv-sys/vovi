@@ -88,7 +88,7 @@ const SettingsPage = () => {
     <div>
       <h1 className="text-2xl font-bold mb-6">Settings</h1>
       
-      <Tabs defaultValue="general" className="space-y-4">
+      <Tabs defaultValue="general" className="space-y-4" autoCollapse>
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>

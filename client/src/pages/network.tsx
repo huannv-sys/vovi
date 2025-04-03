@@ -93,7 +93,7 @@ const NetworkPage = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="interfaces" className="space-y-4">
+      <Tabs defaultValue="interfaces" className="space-y-4" autoCollapse>
         <TabsList>
           <TabsTrigger value="interfaces">Network Interfaces</TabsTrigger>
           <TabsTrigger value="traffic">Traffic Analysis</TabsTrigger>

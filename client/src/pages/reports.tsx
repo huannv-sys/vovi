@@ -147,7 +147,7 @@ const PerformanceReportsPage = () => {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="cpu" className="space-y-4">
+      <Tabs defaultValue="cpu" className="space-y-4" autoCollapse>
         <TabsList>
           <TabsTrigger value="cpu">CPU Usage</TabsTrigger>
           <TabsTrigger value="memory">Memory Usage</TabsTrigger>

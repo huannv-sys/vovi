@@ -3,7 +3,59 @@ import * as TabsPrimitive from "@radix-ui/react-tabs"
 
 import { cn } from "@/lib/utils"
 
-const Tabs = TabsPrimitive.Root
+// Tạo phiên bản mở rộng của Tabs với chức năng tự đóng khi click ra ngoài
+interface TabsProps extends React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root> {
+  autoCollapse?: boolean;
+}
+
+const Tabs = React.forwardRef<
+  React.ElementRef<typeof TabsPrimitive.Root>,
+  TabsProps
+>(({ autoCollapse = false, ...props }, ref) => {
+  const tabsRef = React.useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = React.useState<string | undefined>(props.defaultValue as string);
+
+  React.useEffect(() => {
+    if (!autoCollapse) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (tabsRef.current && !tabsRef.current.contains(event.target as Node)) {
+        setActiveTab(undefined);
+        if (props.onValueChange) {
+          props.onValueChange(props.defaultValue as string);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [autoCollapse, props.defaultValue, props.onValueChange]);
+
+  React.useEffect(() => {
+    if (props.value !== undefined) {
+      setActiveTab(props.value);
+    }
+  }, [props.value]);
+
+  return (
+    <div ref={tabsRef}>
+      <TabsPrimitive.Root
+        {...props}
+        ref={ref}
+        value={activeTab || props.defaultValue as string}
+        onValueChange={(value) => {
+          setActiveTab(value);
+          if (props.onValueChange) {
+            props.onValueChange(value);
+          }
+        }}
+      />
+    </div>
+  );
+});
+Tabs.displayName = "Tabs";
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,

@@ -230,7 +230,7 @@ const SecurityPage = () => {
         </div>
       </div>
 
-      <Tabs defaultValue="threats" className="space-y-4">
+      <Tabs defaultValue="threats" className="space-y-4" autoCollapse>
         <TabsList>
           <TabsTrigger value="threats">Security Threats</TabsTrigger>
           <TabsTrigger value="firewall">Firewall Rules</TabsTrigger>
