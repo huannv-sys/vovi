@@ -3,7 +3,7 @@ import { storage } from "../storage";
 
 class SchedulerService {
   private intervalId?: NodeJS.Timeout;
-  private pollingInterval: number = 60000; // 1 minute
+  private pollingInterval: number = 10000; // 10 seconds - increased frequency for real-time updates
 
   start() {
     if (this.intervalId) {

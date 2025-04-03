@@ -21,7 +21,7 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
   const { data: metrics, isLoading } = useQuery<Metric[]>({ 
     queryKey: deviceId ? ['/api/devices', deviceId, 'metrics'] : ['empty'],
     enabled: !!deviceId,
-    refetchInterval: 5000, // Refresh every 5 seconds
+    refetchInterval: 3000, // Refresh every 3 seconds for near real-time updates
   });
 
   // Format traffic data for the chart

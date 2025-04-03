@@ -24,11 +24,11 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
     enabled: !!deviceId,
   });
 
-  // Fetch metrics data
+  // Fetch metrics data with higher refresh rate
   const { data: metrics, isLoading } = useQuery<Metric[]>({ 
     queryKey: deviceId ? ['/api/devices', deviceId, 'metrics'] : ['empty'],
     enabled: !!deviceId,
-    refetchInterval: 10000, // Refresh every 10 seconds to get latest data
+    refetchInterval: 3000, // Refresh every 3 seconds to get latest data in near real-time
   });
 
   // Get latest metric

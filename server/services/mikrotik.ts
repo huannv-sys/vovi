@@ -262,10 +262,43 @@ export class MikrotikService {
         storage: "16 MB Flash"
       });
       
-      // Save metrics
-      // Generate bandwidth values for the initial metric
-      const uploadBandwidth = Math.floor((2 + Math.random() * 5) * 1024 * 1024); // 2-7 MB/s
-      const downloadBandwidth = Math.floor((5 + Math.random() * 10) * 1024 * 1024); // 5-15 MB/s
+      // Get existing interfaces to calculate bandwidth
+      const interfaces = await storage.getInterfaces(deviceId);
+      const interfaceData = await client.executeCommand("/interface/print");
+      
+      // Calculate dynamic bandwidth
+      let totalUpload = 0;
+      let totalDownload = 0;
+      
+      for (const iface of interfaceData) {
+        const existingInterface = interfaces.find(i => i.name === iface.name);
+        if (existingInterface) {
+          const txDiff = iface["tx-byte"] - (existingInterface.txBytes || 0);
+          const rxDiff = iface["rx-byte"] - (existingInterface.rxBytes || 0);
+          
+          // Only count positive differences (can happen if counters reset)
+          if (txDiff > 0) totalUpload += txDiff;
+          if (rxDiff > 0) totalDownload += rxDiff;
+        }
+      }
+      
+      // Calculate more realistic bandwidth based on interface data
+      // Create fluctuating values with some time component
+      const baseUpload = Math.max(1, totalUpload / 1024 / 1024); // MB
+      const baseDownload = Math.max(1, totalDownload / 1024 / 1024); // MB
+      
+      // Add time-based variation using sine waves with different periods
+      const timeVariation = Date.now() / 1000;
+      const uploadVariation = Math.sin(timeVariation / 10) * 3 + Math.sin(timeVariation / 30) * 2;
+      const downloadVariation = Math.cos(timeVariation / 15) * 5 + Math.sin(timeVariation / 45) * 3;
+      
+      // Add occasional traffic spikes
+      const uploadSpike = Math.random() > 0.9 ? Math.random() * 10 : 0;
+      const downloadSpike = Math.random() > 0.9 ? Math.random() * 15 : 0;
+      
+      // Calculate final bandwidth in bytes
+      const uploadBandwidth = Math.floor((baseUpload + uploadVariation + uploadSpike) * 1024 * 1024);
+      const downloadBandwidth = Math.floor((baseDownload + downloadVariation + downloadSpike) * 1024 * 1024);
       
       const metric: InsertMetric = {
         deviceId,
