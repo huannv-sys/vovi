@@ -19,7 +19,7 @@ class MikrotikClient {
   private username: string;
   private password: string;
   private client: rosjs.RouterOSClient | null = null;
-  private useMockData: boolean = false; // Set to false to use real data from RouterOS devices
+  private useMockData: boolean = true; // Set to true to use mock data during testing
   
   constructor(ipAddress: string, username: string, password: string) {
     this.ipAddress = ipAddress;
@@ -53,6 +53,7 @@ class MikrotikClient {
         // Connect to the device
         if (this.client) {
           await this.client.connect();
+          console.log(`Successfully connected to ${this.ipAddress}`);
           this.connected = true;
           return true;
         }
@@ -95,11 +96,47 @@ class MikrotikClient {
         // Convert command like "/system/resource/print" to ["system", "resource", "print"]
         const commandParts = command.split('/').filter(Boolean);
         
-        // RouterOS-client uses query method instead of write
-        const result = await this.client.query({
-          command: commandParts,
-          params: params.length > 0 ? params[0] : {}
-        }).promise;
+        // Use RouterOSAPI's methods to execute commands
+        if (!this.client) {
+          throw new Error("RouterOS client not initialized");
+        }
+        
+        // Format params in the way RouterOS API expects
+        let apiParams: Record<string, any> = {};
+        if (params.length > 0 && typeof params[0] === 'object') {
+          apiParams = params[0];
+        }
+        
+        console.log(`Executing command ${commandParts.join('/')} with params:`, apiParams);
+        
+        // Create a menu path based on command parts (except the last one which is the action)
+        const api = this.client.api();
+        const action = commandParts.pop(); // Get the last part (action) from the command
+        const model = new rosjs.RosApiModel(api);
+        
+        // Navigate to the correct API path/menu
+        let menu = model.menu();
+        for (const part of commandParts) {
+          menu = menu.menu(part);
+        }
+        
+        // Execute the corresponding action (print, add, remove, etc.)
+        let result;
+        if (action === 'print') {
+          // Handle print action
+          result = await menu.print(apiParams);
+        } else if (action === 'add') {
+          // Handle add action
+          result = await menu.add(apiParams);
+        } else if (action === 'remove') {
+          // Handle remove action
+          result = await menu.remove(apiParams);
+        } else if (action === 'set') {
+          // Handle set action
+          result = await menu.set(apiParams);
+        } else {
+          throw new Error(`Unsupported action: ${action}`);
+        }
         
         console.log(`Got result from real device for ${command}:`, result);
         return result;
