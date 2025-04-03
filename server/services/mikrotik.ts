@@ -561,11 +561,11 @@ export class MikrotikService {
     try {
       console.log(`Connecting to device ${deviceId} (${device.ipAddress})...`);
       
-      // Nếu môi trường không hỗ trợ kết nối trực tiếp (như Replit), sử dụng mock data
-      // Vì Replit không thể kết nối với thiết bị bên ngoài mạng local
-      const isReplit = process.env.REPL_ID || process.env.REPL_SLUG;
-      if (isReplit) {
-        console.log(`⚠️ DEMO MODE - Running in Replit environment - using demo data for device ${deviceId}`);
+      // Cho phép kết nối trực tiếp đến thiết bị thực tế, ngay cả trong môi trường Replit
+      // Chỉ chuyển sang chế độ demo nếu được chỉ định bằng biến môi trường FORCE_DEMO_MODE
+      const forceDemoMode = process.env.FORCE_DEMO_MODE === "true";
+      if (forceDemoMode) {
+        console.log(`⚠️ DEMO MODE - Forced by environment variable - using demo data for device ${deviceId}`);
         
         // Cập nhật thiết bị để hiển thị đúng trong DEMO MODE - không báo là online
         await storage.updateDevice(deviceId, { 
@@ -599,15 +599,15 @@ export class MikrotikService {
       const ports = [8728, 8729, 80, 443];
       let connected = false;
       
-      // Thử kết nối với từng cổng - giảm timeout để tránh treo ứng dụng
+      // Thử kết nối với từng cổng - tăng timeout để có thêm thời gian trên mạng công cộng
       for (const port of ports) {
         try {
           // Đặt cổng trong máy khách
           client.setPort(port);
-          console.log(`Trying to connect to ${device.ipAddress} on port ${port}...`);
+          console.log(`Trying to connect to ${device.ipAddress} on port ${port}... (Wait 10s for timeout)`);
           
-          // Thử kết nối với thời gian chờ ngắn hơn để tránh treo
-          connected = await client.connect(3000);
+          // Thử kết nối với thời gian chờ dài hơn trên mạng công cộng
+          connected = await client.connect(10000);
           
           // Nếu kết nối thành công, dừng vòng lặp
           if (connected) {
