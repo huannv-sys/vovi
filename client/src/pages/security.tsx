@@ -6,9 +6,46 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { toast } from "@/hooks/use-toast";
+
+// Define firewall rule types
+interface FirewallRule {
+  id: number;
+  name: string;
+  chain: string;
+  action: "accept" | "drop" | "reject";
+  protocol: string;
+  dstPort: string;
+  srcAddress?: string;
+  dstAddress?: string;
+  state: "enabled" | "disabled";
+  comment?: string;
+}
+
+// Initial form state for new firewall rules
+const initialFirewallForm: Omit<FirewallRule, "id"> = {
+  name: "",
+  chain: "forward",
+  action: "accept",
+  protocol: "tcp",
+  dstPort: "",
+  state: "enabled",
+  comment: ""
+};
 
 const SecurityPage = () => {
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
+  const [isAddRuleDialogOpen, setIsAddRuleDialogOpen] = useState(false);
+  const [isEditRuleDialogOpen, setIsEditRuleDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedRuleId, setSelectedRuleId] = useState<number | null>(null);
+  const [firewallForm, setFirewallForm] = useState<Omit<FirewallRule, "id">>(initialFirewallForm);
   
   const { data: devices } = useQuery<Device[]>({ 
     queryKey: ['/api/devices'],
@@ -22,13 +59,13 @@ const SecurityPage = () => {
   }, [devices, selectedDeviceId]);
 
   // Mock security data for demonstration
-  const firewallRules = [
+  const [firewallRules, setFirewallRules] = useState<FirewallRule[]>([
     { id: 1, name: "Allow HTTP", chain: "forward", action: "accept", protocol: "tcp", dstPort: "80", state: "enabled" },
     { id: 2, name: "Allow HTTPS", chain: "forward", action: "accept", protocol: "tcp", dstPort: "443", state: "enabled" },
     { id: 3, name: "Block Telnet", chain: "forward", action: "drop", protocol: "tcp", dstPort: "23", state: "enabled" },
     { id: 4, name: "Allow SSH", chain: "forward", action: "accept", protocol: "tcp", dstPort: "22", state: "disabled" },
-    { id: 5, name: "Block Malicious IPs", chain: "forward", action: "drop", protocol: "any", dstPort: "any", state: "enabled" }
-  ];
+    { id: 5, name: "Block Malicious IPs", chain: "forward", action: "drop", protocol: "any", dstPort: "any", srcAddress: "", dstAddress: "192.168.5.123", state: "enabled" }
+  ]);
 
   const securityThreats = [
     { id: 1, type: "bruteforce", source: "192.168.5.123", target: "SSH", count: 15, lastAttempt: "2025-04-03T08:45:21Z", severity: "high" },
@@ -75,6 +112,95 @@ const SecurityPage = () => {
         return <Badge className="bg-blue-500">Low</Badge>;
       default:
         return <Badge>Unknown</Badge>;
+    }
+  };
+
+  // Firewall management functions
+  const handleAddRule = () => {
+    setFirewallForm(initialFirewallForm);
+    setIsAddRuleDialogOpen(true);
+  };
+
+  const handleEditRule = (id: number) => {
+    const rule = firewallRules.find(r => r.id === id);
+    if (rule) {
+      setSelectedRuleId(id);
+      setFirewallForm({
+        name: rule.name,
+        chain: rule.chain,
+        action: rule.action,
+        protocol: rule.protocol,
+        dstPort: rule.dstPort,
+        srcAddress: rule.srcAddress || "",
+        dstAddress: rule.dstAddress || "",
+        state: rule.state,
+        comment: rule.comment || ""
+      });
+      setIsEditRuleDialogOpen(true);
+    }
+  };
+
+  const handleDeleteRule = (id: number) => {
+    setSelectedRuleId(id);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleFirewallFormChange = (field: keyof Omit<FirewallRule, "id">, value: string) => {
+    setFirewallForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleStateChange = (checked: boolean) => {
+    setFirewallForm(prev => ({
+      ...prev,
+      state: checked ? "enabled" : "disabled"
+    }));
+  };
+
+  const saveFirewallRule = () => {
+    if (!firewallForm.name || !firewallForm.dstPort) {
+      toast({
+        title: "Validation Error",
+        description: "Rule name and destination port are required.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (isEditRuleDialogOpen && selectedRuleId) {
+      // Update existing rule
+      setFirewallRules(prev => 
+        prev.map(rule => 
+          rule.id === selectedRuleId ? { ...firewallForm, id: selectedRuleId } : rule
+        )
+      );
+      setIsEditRuleDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Firewall rule updated successfully.",
+      });
+    } else {
+      // Add new rule
+      const newId = Math.max(0, ...firewallRules.map(r => r.id)) + 1;
+      setFirewallRules(prev => [...prev, { ...firewallForm, id: newId }]);
+      setIsAddRuleDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "New firewall rule added successfully.",
+      });
+    }
+  };
+
+  const confirmDeleteRule = () => {
+    if (selectedRuleId) {
+      setFirewallRules(prev => prev.filter(rule => rule.id !== selectedRuleId));
+      setIsDeleteDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Firewall rule deleted successfully.",
+      });
     }
   };
 
@@ -167,7 +293,7 @@ const SecurityPage = () => {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Firewall Rules</CardTitle>
-              <Button>Add Rule</Button>
+              <Button onClick={handleAddRule}>Add Rule</Button>
             </CardHeader>
             <CardContent>
               <Table>
@@ -200,14 +326,307 @@ const SecurityPage = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="flex space-x-2">
-                        <Button variant="outline" size="sm">Edit</Button>
-                        <Button variant="destructive" size="sm">Delete</Button>
+                        <Button variant="outline" size="sm" onClick={() => handleEditRule(rule.id)}>Edit</Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteRule(rule.id)}>Delete</Button>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             </CardContent>
+
+            {/* Dialog for adding a new firewall rule */}
+            <Dialog open={isAddRuleDialogOpen} onOpenChange={setIsAddRuleDialogOpen}>
+              <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                  <DialogTitle>Add New Firewall Rule</DialogTitle>
+                  <DialogDescription>
+                    Create a new firewall rule for your device. Fill in the details below.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="name">Rule Name</Label>
+                      <Input 
+                        id="name" 
+                        placeholder="e.g., Allow HTTP Traffic" 
+                        value={firewallForm.name}
+                        onChange={(e) => handleFirewallFormChange("name", e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="chain">Chain</Label>
+                      <Select 
+                        value={firewallForm.chain}
+                        onValueChange={(value) => handleFirewallFormChange("chain", value)}
+                      >
+                        <SelectTrigger id="chain">
+                          <SelectValue placeholder="Select Chain" />
+                        </SelectTrigger>
+                        <SelectContent position="popper">
+                          <SelectItem value="forward">Forward</SelectItem>
+                          <SelectItem value="input">Input</SelectItem>
+                          <SelectItem value="output">Output</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="action">Action</Label>
+                      <Select 
+                        value={firewallForm.action}
+                        onValueChange={(value) => handleFirewallFormChange("action", value as "accept" | "drop" | "reject")}
+                      >
+                        <SelectTrigger id="action">
+                          <SelectValue placeholder="Select Action" />
+                        </SelectTrigger>
+                        <SelectContent position="popper">
+                          <SelectItem value="accept">Accept</SelectItem>
+                          <SelectItem value="drop">Drop</SelectItem>
+                          <SelectItem value="reject">Reject</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="protocol">Protocol</Label>
+                      <Select 
+                        value={firewallForm.protocol}
+                        onValueChange={(value) => handleFirewallFormChange("protocol", value)}
+                      >
+                        <SelectTrigger id="protocol">
+                          <SelectValue placeholder="Select Protocol" />
+                        </SelectTrigger>
+                        <SelectContent position="popper">
+                          <SelectItem value="tcp">TCP</SelectItem>
+                          <SelectItem value="udp">UDP</SelectItem>
+                          <SelectItem value="icmp">ICMP</SelectItem>
+                          <SelectItem value="any">Any</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="dstPort">Destination Port</Label>
+                      <Input 
+                        id="dstPort" 
+                        placeholder="e.g., 80 or 443" 
+                        value={firewallForm.dstPort}
+                        onChange={(e) => handleFirewallFormChange("dstPort", e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="state" className="mb-2">Rule Status</Label>
+                      <div className="flex items-center space-x-2">
+                        <Switch 
+                          id="state" 
+                          checked={firewallForm.state === "enabled"}
+                          onCheckedChange={handleStateChange}
+                        />
+                        <Label htmlFor="state" className="ml-2">
+                          {firewallForm.state === "enabled" ? "Enabled" : "Disabled"}
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <Separator className="my-2" />
+                  
+                  <h4 className="text-sm font-medium">Advanced Settings</h4>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="srcAddress">Source Address</Label>
+                      <Input 
+                        id="srcAddress" 
+                        placeholder="e.g., 192.168.1.0/24" 
+                        value={firewallForm.srcAddress}
+                        onChange={(e) => handleFirewallFormChange("srcAddress", e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="dstAddress">Destination Address</Label>
+                      <Input 
+                        id="dstAddress" 
+                        placeholder="e.g., 8.8.8.8" 
+                        value={firewallForm.dstAddress}
+                        onChange={(e) => handleFirewallFormChange("dstAddress", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col space-y-1.5">
+                    <Label htmlFor="comment">Comment</Label>
+                    <Input 
+                      id="comment" 
+                      placeholder="Optional description for this rule" 
+                      value={firewallForm.comment}
+                      onChange={(e) => handleFirewallFormChange("comment", e.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsAddRuleDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={saveFirewallRule}>Add Rule</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Dialog for editing an existing firewall rule */}
+            <Dialog open={isEditRuleDialogOpen} onOpenChange={setIsEditRuleDialogOpen}>
+              <DialogContent className="sm:max-w-[600px]">
+                <DialogHeader>
+                  <DialogTitle>Edit Firewall Rule</DialogTitle>
+                  <DialogDescription>
+                    Update the details of this firewall rule.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="edit-name">Rule Name</Label>
+                      <Input 
+                        id="edit-name" 
+                        value={firewallForm.name}
+                        onChange={(e) => handleFirewallFormChange("name", e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="edit-chain">Chain</Label>
+                      <Select 
+                        value={firewallForm.chain}
+                        onValueChange={(value) => handleFirewallFormChange("chain", value)}
+                      >
+                        <SelectTrigger id="edit-chain">
+                          <SelectValue placeholder="Select Chain" />
+                        </SelectTrigger>
+                        <SelectContent position="popper">
+                          <SelectItem value="forward">Forward</SelectItem>
+                          <SelectItem value="input">Input</SelectItem>
+                          <SelectItem value="output">Output</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="edit-action">Action</Label>
+                      <Select 
+                        value={firewallForm.action}
+                        onValueChange={(value) => handleFirewallFormChange("action", value as "accept" | "drop" | "reject")}
+                      >
+                        <SelectTrigger id="edit-action">
+                          <SelectValue placeholder="Select Action" />
+                        </SelectTrigger>
+                        <SelectContent position="popper">
+                          <SelectItem value="accept">Accept</SelectItem>
+                          <SelectItem value="drop">Drop</SelectItem>
+                          <SelectItem value="reject">Reject</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="edit-protocol">Protocol</Label>
+                      <Select 
+                        value={firewallForm.protocol}
+                        onValueChange={(value) => handleFirewallFormChange("protocol", value)}
+                      >
+                        <SelectTrigger id="edit-protocol">
+                          <SelectValue placeholder="Select Protocol" />
+                        </SelectTrigger>
+                        <SelectContent position="popper">
+                          <SelectItem value="tcp">TCP</SelectItem>
+                          <SelectItem value="udp">UDP</SelectItem>
+                          <SelectItem value="icmp">ICMP</SelectItem>
+                          <SelectItem value="any">Any</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="edit-dstPort">Destination Port</Label>
+                      <Input 
+                        id="edit-dstPort" 
+                        value={firewallForm.dstPort}
+                        onChange={(e) => handleFirewallFormChange("dstPort", e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="edit-state" className="mb-2">Rule Status</Label>
+                      <div className="flex items-center space-x-2">
+                        <Switch 
+                          id="edit-state" 
+                          checked={firewallForm.state === "enabled"}
+                          onCheckedChange={handleStateChange}
+                        />
+                        <Label htmlFor="edit-state" className="ml-2">
+                          {firewallForm.state === "enabled" ? "Enabled" : "Disabled"}
+                        </Label>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <Separator className="my-2" />
+                  
+                  <h4 className="text-sm font-medium">Advanced Settings</h4>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="edit-srcAddress">Source Address</Label>
+                      <Input 
+                        id="edit-srcAddress" 
+                        value={firewallForm.srcAddress}
+                        onChange={(e) => handleFirewallFormChange("srcAddress", e.target.value)}
+                      />
+                    </div>
+                    <div className="flex flex-col space-y-1.5">
+                      <Label htmlFor="edit-dstAddress">Destination Address</Label>
+                      <Input 
+                        id="edit-dstAddress" 
+                        value={firewallForm.dstAddress}
+                        onChange={(e) => handleFirewallFormChange("dstAddress", e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col space-y-1.5">
+                    <Label htmlFor="edit-comment">Comment</Label>
+                    <Input 
+                      id="edit-comment" 
+                      value={firewallForm.comment}
+                      onChange={(e) => handleFirewallFormChange("comment", e.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsEditRuleDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={saveFirewallRule}>Save Changes</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Dialog for confirming rule deletion */}
+            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Confirm Deletion</DialogTitle>
+                  <DialogDescription>
+                    Are you sure you want to delete this firewall rule? This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
+                  <Button variant="destructive" onClick={confirmDeleteRule}>Delete Rule</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </Card>
         </TabsContent>
         
