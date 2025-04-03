@@ -58,8 +58,8 @@ const ActiveAlerts: React.FC<ActiveAlertsProps> = ({ deviceId }) => {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
         <h3 className="font-medium text-neutral-dark">Active Alerts</h3>
-        <Link href="/alerts">
-          <a className="text-xs text-primary hover:text-primary-dark">View All</a>
+        <Link href="/alerts" className="text-xs text-primary hover:text-primary-dark">
+          View All
         </Link>
       </div>
       <div className="p-4">

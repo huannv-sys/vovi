@@ -1,0 +1,408 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Device } from "@shared/schema";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+
+const SettingsPage = () => {
+  const { toast } = useToast();
+  const [pollingInterval, setPollingInterval] = useState<number>(60); // seconds
+  const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean>(true);
+  const [smsNotificationsEnabled, setSmsNotificationsEnabled] = useState<boolean>(false);
+  const [emailAddress, setEmailAddress] = useState<string>("admin@example.com");
+  const [phoneNumber, setPhoneNumber] = useState<string>("");
+  const [alertThreshold, setAlertThreshold] = useState<number>(80); // percentage
+  
+  const { data: devices } = useQuery<Device[]>({
+    queryKey: ['/api/devices'],
+  });
+  
+  const handleUpdatePollingInterval = async () => {
+    try {
+      await apiRequest('POST', '/api/scheduler/polling-interval', {
+        interval: pollingInterval * 1000 // Convert to milliseconds
+      });
+      
+      toast({
+        title: "Settings Updated",
+        description: `Polling interval set to ${pollingInterval} seconds`,
+      });
+    } catch (error) {
+      console.error('Failed to update polling interval:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update polling interval",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  const handleSaveNotificationSettings = () => {
+    // Simulating API call
+    setTimeout(() => {
+      toast({
+        title: "Settings Updated",
+        description: "Notification settings have been saved",
+      });
+    }, 500);
+  };
+  
+  const handleSaveAlertSettings = () => {
+    // Simulating API call
+    setTimeout(() => {
+      toast({
+        title: "Settings Updated",
+        description: "Alert settings have been saved",
+      });
+    }, 500);
+  };
+  
+  const handleTestConnection = async (deviceId: number) => {
+    try {
+      await apiRequest('POST', `/api/devices/${deviceId}/refresh`, {});
+      
+      toast({
+        title: "Connection Successful",
+        description: "Test connection to the device was successful",
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
+    } catch (error) {
+      toast({
+        title: "Connection Failed",
+        description: "Failed to connect to the device",
+        variant: "destructive",
+      });
+    }
+  };
+  
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-6">Settings</h1>
+      
+      <Tabs defaultValue="general" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+          <TabsTrigger value="alerts">Alert Settings</TabsTrigger>
+          <TabsTrigger value="devices">Device Management</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value="general" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Data Collection Settings</CardTitle>
+              <CardDescription>
+                Configure how frequently data is collected from monitored devices
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="polling-interval">Polling Interval (seconds)</Label>
+                <div className="flex items-center space-x-4">
+                  <Slider
+                    id="polling-interval"
+                    min={5}
+                    max={300}
+                    step={5}
+                    value={[pollingInterval]}
+                    onValueChange={(value) => setPollingInterval(value[0])}
+                    className="flex-1"
+                  />
+                  <div className="w-16">
+                    <Input
+                      type="number"
+                      value={pollingInterval}
+                      onChange={(e) => setPollingInterval(parseInt(e.target.value) || 5)}
+                      min={5}
+                      max={300}
+                      step={5}
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-gray-500">
+                  Current setting: {pollingInterval} seconds
+                </p>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleUpdatePollingInterval}>Save Changes</Button>
+            </CardFooter>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>User Interface Settings</CardTitle>
+              <CardDescription>
+                Customize the appearance and behavior of the dashboard
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Theme</Label>
+                <Select defaultValue="light">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select theme" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Light</SelectItem>
+                    <SelectItem value="dark">Dark</SelectItem>
+                    <SelectItem value="system">System</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Time Format</Label>
+                <Select defaultValue="12h">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select time format" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12h">12-hour (AM/PM)</SelectItem>
+                    <SelectItem value="24h">24-hour</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <Label htmlFor="auto-refresh">Auto-refresh Dashboard</Label>
+                <Switch id="auto-refresh" defaultChecked />
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button>Save Changes</Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="notifications" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Notification Settings</CardTitle>
+              <CardDescription>
+                Configure how you want to receive notifications
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="email-notifications">Email Notifications</Label>
+                <Switch 
+                  id="email-notifications" 
+                  checked={emailNotificationsEnabled}
+                  onCheckedChange={setEmailNotificationsEnabled}
+                />
+              </div>
+              
+              {emailNotificationsEnabled && (
+                <div className="space-y-2">
+                  <Label htmlFor="email-address">Email Address</Label>
+                  <Input 
+                    id="email-address" 
+                    type="email" 
+                    value={emailAddress}
+                    onChange={(e) => setEmailAddress(e.target.value)}
+                  />
+                </div>
+              )}
+              
+              <div className="flex items-center justify-between">
+                <Label htmlFor="sms-notifications">SMS Notifications</Label>
+                <Switch 
+                  id="sms-notifications" 
+                  checked={smsNotificationsEnabled}
+                  onCheckedChange={setSmsNotificationsEnabled}
+                />
+              </div>
+              
+              {smsNotificationsEnabled && (
+                <div className="space-y-2">
+                  <Label htmlFor="phone-number">Phone Number</Label>
+                  <Input 
+                    id="phone-number" 
+                    type="tel" 
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="+1 (555) 123-4567"
+                  />
+                </div>
+              )}
+              
+              <div className="space-y-2">
+                <Label>Notification Types</Label>
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="flex items-center space-x-2">
+                    <Switch id="alert-notifications" defaultChecked />
+                    <Label htmlFor="alert-notifications">Alerts</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch id="status-notifications" defaultChecked />
+                    <Label htmlFor="status-notifications">Status Changes</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Switch id="performance-notifications" />
+                    <Label htmlFor="performance-notifications">Performance Warnings</Label>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleSaveNotificationSettings}>Save Changes</Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="alerts" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Alert Configuration</CardTitle>
+              <CardDescription>
+                Configure threshold and behavior for system alerts
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="alert-threshold">CPU/Memory Alert Threshold (%)</Label>
+                <div className="flex items-center space-x-4">
+                  <Slider
+                    id="alert-threshold"
+                    min={50}
+                    max={95}
+                    step={5}
+                    value={[alertThreshold]}
+                    onValueChange={(value) => setAlertThreshold(value[0])}
+                    className="flex-1"
+                  />
+                  <div className="w-16">
+                    <Input
+                      type="number"
+                      value={alertThreshold}
+                      onChange={(e) => setAlertThreshold(parseInt(e.target.value) || 50)}
+                      min={50}
+                      max={95}
+                      step={5}
+                    />
+                  </div>
+                </div>
+                <p className="text-sm text-gray-500">
+                  Alerts will be triggered when CPU or memory usage exceeds {alertThreshold}%
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Alert Severity Levels</Label>
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="critical-alerts">Critical Alerts</Label>
+                    <Switch id="critical-alerts" defaultChecked />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="warning-alerts">Warning Alerts</Label>
+                    <Switch id="warning-alerts" defaultChecked />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="info-alerts">Info Alerts</Label>
+                    <Switch id="info-alerts" defaultChecked />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Auto-Acknowledge Alerts</Label>
+                <Select defaultValue="never">
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select option" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="never">Never</SelectItem>
+                    <SelectItem value="24h">After 24 hours</SelectItem>
+                    <SelectItem value="7d">After 7 days</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleSaveAlertSettings}>Save Changes</Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="devices" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Device Connection Settings</CardTitle>
+              <CardDescription>
+                Configure connection settings for monitored devices
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {devices && devices.length > 0 ? (
+                <div className="space-y-4">
+                  {devices.map((device) => (
+                    <div key={device.id} className="border rounded-md p-4">
+                      <div className="flex flex-col md:flex-row md:items-center justify-between">
+                        <div>
+                          <h3 className="font-medium text-lg">{device.name}</h3>
+                          <p className="text-sm text-gray-500">IP: {device.ipAddress}</p>
+                        </div>
+                        <div className="flex items-center space-x-2 mt-2 md:mt-0">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => handleTestConnection(device.id)}
+                          >
+                            Test Connection
+                          </Button>
+                          <Button variant="destructive" size="sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M18 6L6 18"></path>
+                              <path d="M6 6l12 12"></path>
+                            </svg>
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div className="space-y-2">
+                          <Label htmlFor={`username-${device.id}`}>Username</Label>
+                          <Input id={`username-${device.id}`} defaultValue={device.username} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor={`password-${device.id}`}>Password</Label>
+                          <Input id={`password-${device.id}`} type="password" defaultValue="••••••••" />
+                        </div>
+                      </div>
+                      <div className="flex justify-end mt-4">
+                        <Button>Update Credentials</Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="6" width="20" height="12" rx="2" />
+                    <line x1="2" y1="12" x2="22" y2="12" />
+                  </svg>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No devices found</h3>
+                  <p className="text-sm text-gray-500 text-center mb-4">
+                    Add your first Mikrotik device to start monitoring.
+                  </p>
+                  <Button>Add Device</Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};
+
+export default SettingsPage;

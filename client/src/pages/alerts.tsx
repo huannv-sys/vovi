@@ -11,6 +11,10 @@ const AlertsPage = () => {
   const { toast } = useToast();
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
   const [showAcknowledged, setShowAcknowledged] = useState<boolean>(false);
+  
+  const handleDeviceChange = (value: string) => {
+    setSelectedDeviceId(value === "all" ? null : parseInt(value));
+  };
 
   const { data: devices } = useQuery<Device[]>({ 
     queryKey: ['/api/devices'],
@@ -128,14 +132,14 @@ const AlertsPage = () => {
         <div className="flex flex-col sm:flex-row gap-4">
           <div className="flex items-center space-x-2">
             <Select
-              value={selectedDeviceId?.toString() || ""}
-              onValueChange={(value) => setSelectedDeviceId(value ? parseInt(value) : null)}
+              value={selectedDeviceId?.toString() || "all"}
+              onValueChange={handleDeviceChange}
             >
               <SelectTrigger className="w-[200px]">
                 <SelectValue placeholder="All Devices" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Devices</SelectItem>
+                <SelectItem value="all">All Devices</SelectItem>
                 {devices?.map((device) => (
                   <SelectItem key={device.id} value={device.id.toString()}>
                     {device.name}
