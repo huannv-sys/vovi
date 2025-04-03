@@ -175,7 +175,7 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
         downloadRate: downloadMbps,
         uploadRate: uploadMbps,
         ratio: uploadMbps > 0 ? downloadMbps / uploadMbps : 0,
-        timestamp: metric.timestamp,
+        timestamp: metric.timestamp ? metric.timestamp.toString() : new Date().toISOString(),
         isPeakHour,
         cpuUsage: metric.cpuUsage,
         memoryUsage: metric.memoryUsage
@@ -256,13 +256,13 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
     const latestData = trafficData[trafficData.length - 1];
     
     return {
-      timestamp: latestData.timestamp,
+      timestamp: typeof latestData.timestamp === 'string' ? latestData.timestamp : new Date().toISOString(),
       download: latestData.download || 0,
       upload: latestData.upload || 0,
       traffic: latestData.traffic || 0,
       cpuUsage: latestData.cpuUsage || 0,
       memoryUsage: latestData.memoryUsage || 0,
-      lastUpdate: formatTimeAgo(latestData.timestamp)
+      lastUpdate: formatTimeAgo(typeof latestData.timestamp === 'string' ? latestData.timestamp : new Date().toISOString())
     };
   }, [trafficData]);
 
