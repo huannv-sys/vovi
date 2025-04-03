@@ -98,7 +98,14 @@ export class MemStorage implements IStorage {
       id, 
       lastSeen: now, 
       isOnline: false,
-      uptime: "0d 0h 0m"
+      uptime: "0d 0h 0m",
+      model: insertDevice.model || null,
+      serialNumber: insertDevice.serialNumber || null,
+      routerOsVersion: insertDevice.routerOsVersion || null,
+      firmware: insertDevice.firmware || null,
+      cpu: insertDevice.cpu || null,
+      totalMemory: insertDevice.totalMemory || null,
+      storage: insertDevice.storage || null
     };
     this.devices.set(id, device);
     return device;
@@ -131,7 +138,17 @@ export class MemStorage implements IStorage {
 
   async createMetric(insertMetric: InsertMetric): Promise<Metric> {
     const id = this.metricIdCounter++;
-    const metric: Metric = { ...insertMetric, id };
+    const metric: Metric = { 
+      ...insertMetric, 
+      id,
+      timestamp: insertMetric.timestamp || new Date(),
+      cpuUsage: insertMetric.cpuUsage || null,
+      memoryUsage: insertMetric.memoryUsage || null,
+      totalMemory: insertMetric.totalMemory || null,
+      temperature: insertMetric.temperature || null,
+      uploadBandwidth: insertMetric.uploadBandwidth || null,
+      downloadBandwidth: insertMetric.downloadBandwidth || null
+    };
     this.metrics.set(id, metric);
     return metric;
   }
@@ -148,7 +165,19 @@ export class MemStorage implements IStorage {
 
   async createInterface(insertInterface: InsertInterface): Promise<Interface> {
     const id = this.interfaceIdCounter++;
-    const iface: Interface = { ...insertInterface, id };
+    const iface: Interface = { 
+      ...insertInterface, 
+      id,
+      name: insertInterface.name,
+      deviceId: insertInterface.deviceId,
+      type: insertInterface.type || null,
+      speed: insertInterface.speed || null,
+      isUp: insertInterface.isUp || null,
+      macAddress: insertInterface.macAddress || null,
+      txBytes: insertInterface.txBytes || null,
+      rxBytes: insertInterface.rxBytes || null,
+      lastUpdated: insertInterface.lastUpdated || new Date()
+    };
     this.interfaces.set(id, iface);
     return iface;
   }
@@ -186,7 +215,16 @@ export class MemStorage implements IStorage {
 
   async createAlert(insertAlert: InsertAlert): Promise<Alert> {
     const id = this.alertIdCounter++;
-    const alert: Alert = { ...insertAlert, id, acknowledged: false };
+    const alert: Alert = { 
+      ...insertAlert, 
+      id, 
+      acknowledged: false,
+      deviceId: insertAlert.deviceId,
+      severity: insertAlert.severity,
+      message: insertAlert.message,
+      timestamp: insertAlert.timestamp || new Date(),
+      source: insertAlert.source || null
+    };
     this.alerts.set(id, alert);
     return alert;
   }

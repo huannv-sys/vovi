@@ -9,6 +9,7 @@ const DeviceInfo: React.FC<DeviceInfoProps> = ({ deviceId }) => {
   const { data: device, isLoading } = useQuery<Device>({ 
     queryKey: deviceId ? ['/api/devices', deviceId] : ['/api/devices'],
     enabled: !!deviceId,
+    refetchInterval: 5000, // Refresh device info every 5 seconds
   });
   
   const formatLastSeen = (date: string | Date | null | undefined) => {
