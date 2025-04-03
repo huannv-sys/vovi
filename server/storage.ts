@@ -13,6 +13,12 @@ import {
   type InsertCapsmanAP,
   type CapsmanClient,
   type InsertCapsmanClient,
+  type User,
+  type InsertUser, 
+  type Session,
+  type InsertSession,
+  type UserLog,
+  type InsertUserLog,
   devices,
   metrics,
   interfaces,
@@ -20,6 +26,9 @@ import {
   wirelessInterfaces,
   capsmanAPs,
   capsmanClients,
+  users,
+  sessions,
+  userLogs,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -68,6 +77,25 @@ export interface IStorage {
   createCapsmanClient(client: InsertCapsmanClient): Promise<CapsmanClient>;
   updateCapsmanClient(id: number, client: Partial<CapsmanClient>): Promise<CapsmanClient | undefined>;
   deleteCapsmanClient(id: number): Promise<boolean>;
+  
+  // User management operations
+  getAllUsers(): Promise<User[]>;
+  getUser(id: number): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(user: InsertUser): Promise<User>;
+  updateUser(id: number, user: Partial<User>): Promise<User | undefined>;
+  deleteUser(id: number): Promise<boolean>;
+  
+  // Session management operations
+  getSession(id: number): Promise<Session | undefined>;
+  getSessionByToken(token: string): Promise<Session | undefined>;
+  createSession(session: InsertSession): Promise<Session>;
+  deleteSession(token: string): Promise<boolean>;
+  cleanExpiredSessions(): Promise<number>;
+  
+  // User activity log operations
+  getUserLogs(userId: number, limit?: number): Promise<UserLog[]>;
+  createUserLog(log: InsertUserLog): Promise<UserLog>;
 }
 
 export class MemStorage implements IStorage {
@@ -78,6 +106,9 @@ export class MemStorage implements IStorage {
   private wirelessInterfaces: Map<number, WirelessInterface>;
   private capsmanAPs: Map<number, CapsmanAP>;
   private capsmanClients: Map<number, CapsmanClient>;
+  private users: Map<number, User>;
+  private sessions: Map<number, Session>;
+  private userLogs: Map<number, UserLog>;
   private deviceIdCounter: number;
   private metricIdCounter: number;
   private interfaceIdCounter: number;
@@ -85,6 +116,9 @@ export class MemStorage implements IStorage {
   private wirelessInterfaceIdCounter: number;
   private capsmanAPIdCounter: number;
   private capsmanClientIdCounter: number;
+  private userIdCounter: number;
+  private sessionIdCounter: number;
+  private userLogIdCounter: number;
 
   constructor() {
     this.devices = new Map();
@@ -94,6 +128,9 @@ export class MemStorage implements IStorage {
     this.wirelessInterfaces = new Map();
     this.capsmanAPs = new Map();
     this.capsmanClients = new Map();
+    this.users = new Map();
+    this.sessions = new Map();
+    this.userLogs = new Map();
     this.deviceIdCounter = 1;
     this.metricIdCounter = 1;
     this.interfaceIdCounter = 1;
@@ -101,6 +138,9 @@ export class MemStorage implements IStorage {
     this.wirelessInterfaceIdCounter = 1;
     this.capsmanAPIdCounter = 1;
     this.capsmanClientIdCounter = 1;
+    this.userIdCounter = 1;
+    this.sessionIdCounter = 1;
+    this.userLogIdCounter = 1;
 
     // Add sample device for initial testing
     this.createDevice({
@@ -189,17 +229,25 @@ export class MemStorage implements IStorage {
 
   async createMetric(insertMetric: InsertMetric): Promise<Metric> {
     const id = this.metricIdCounter++;
+    const now = new Date();
     const metric: Metric = { 
-      ...insertMetric, 
       id,
-      timestamp: insertMetric.timestamp || new Date(),
-      cpuUsage: insertMetric.cpuUsage || null,
-      memoryUsage: insertMetric.memoryUsage || null,
-      totalMemory: insertMetric.totalMemory || null,
+      deviceId: insertMetric.deviceId,
+      timestamp: insertMetric.timestamp || now,
+      
+      // Các trường chính
+      cpuLoad: insertMetric.cpuLoad || null,
+      memoryUsed: insertMetric.memoryUsed || null,
+      uptime: insertMetric.uptime || null,
       temperature: insertMetric.temperature || null,
+      totalMemory: insertMetric.totalMemory || null,
       uploadBandwidth: insertMetric.uploadBandwidth || null,
       downloadBandwidth: insertMetric.downloadBandwidth || null,
-      boardTemp: insertMetric.boardTemp || null
+      boardTemp: insertMetric.boardTemp || null,
+      
+      // Các trường tương thích ngược
+      cpuUsage: insertMetric.cpuUsage || insertMetric.cpuLoad || null,
+      memoryUsage: insertMetric.memoryUsage || insertMetric.memoryUsed || null
     };
     this.metrics.set(id, metric);
     return metric;
@@ -446,6 +494,142 @@ export class MemStorage implements IStorage {
   async deleteCapsmanClient(id: number): Promise<boolean> {
     return this.capsmanClients.delete(id);
   }
+  
+  // User management operations
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
+  async getUser(id: number): Promise<User | undefined> {
+    return this.users.get(id);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.username === username
+    );
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    const id = this.userIdCounter++;
+    const now = new Date();
+    const user: User = {
+      id,
+      username: insertUser.username,
+      password: insertUser.password,
+      email: insertUser.email || null,
+      fullName: insertUser.fullName || null,
+      role: insertUser.role || 'viewer',
+      isActive: true,
+      lastLogin: null,
+      createdAt: now,
+      updatedAt: now
+    };
+    this.users.set(id, user);
+    return user;
+  }
+
+  async updateUser(id: number, updateUser: Partial<User>): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+
+    const updatedUser = { ...user, ...updateUser };
+    this.users.set(id, updatedUser);
+    return updatedUser;
+  }
+
+  async deleteUser(id: number): Promise<boolean> {
+    return this.users.delete(id);
+  }
+
+  // Session management operations
+  async getSession(id: number): Promise<Session | undefined> {
+    return this.sessions.get(id);
+  }
+
+  async getSessionByToken(token: string): Promise<Session | undefined> {
+    return Array.from(this.sessions.values()).find(
+      (session) => session.token === token
+    );
+  }
+
+  async createSession(insertSession: InsertSession): Promise<Session> {
+    const id = this.sessionIdCounter++;
+    const session: Session = {
+      ...insertSession,
+      id,
+      createdAt: new Date(),
+      expiresAt: insertSession.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours by default
+      ipAddress: insertSession.ipAddress || null,
+      userAgent: insertSession.userAgent || null
+    };
+    this.sessions.set(id, session);
+    return session;
+  }
+
+  async deleteSession(token: string): Promise<boolean> {
+    const session = await this.getSessionByToken(token);
+    if (!session) return false;
+    return this.sessions.delete(session.id);
+  }
+
+  async cleanExpiredSessions(): Promise<number> {
+    const now = new Date();
+    let count = 0;
+    
+    // Chuyển đổi thành mảng rồi lặp qua từng phần tử để tránh lỗi khi sử dụng Map.entries()
+    const sessions = Array.from(this.sessions);
+    for (const [id, session] of sessions) {
+      if (session.expiresAt < now) {
+        this.sessions.delete(id);
+        count++;
+      }
+    }
+    
+    return count;
+  }
+
+  // User activity log operations
+  async getUserLogs(userId: number, limit?: number): Promise<UserLog[]> {
+    let userLogs = Array.from(this.userLogs.values())
+      .filter(log => log.userId === userId)
+      .sort((a, b) => {
+        // Xử lý trường hợp timestamp là null
+        const timestampA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const timestampB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return timestampB - timestampA;
+      });
+    
+    if (limit) {
+      return userLogs.slice(0, limit);
+    }
+    return userLogs;
+  }
+
+  async createUserLog(insertUserLog: InsertUserLog): Promise<UserLog> {
+    const id = this.userLogIdCounter++;
+    const userLog: UserLog = {
+      id,
+      userId: insertUserLog.userId,
+      action: insertUserLog.action,
+      target: insertUserLog.target || null,
+      targetId: insertUserLog.targetId || null,
+      details: insertUserLog.details || null,
+      ipAddress: insertUserLog.ipAddress || null,
+      timestamp: new Date()
+    };
+    this.userLogs.set(id, userLog);
+    return userLog;
+  }
 }
 
 export const storage = new MemStorage();
+
+// Khởi tạo người dùng admin mặc định
+storage.createUser({
+  username: "admin",
+  password: "$2b$10$mLHY3.Zr/lpl7Q1XAtJ1h.JODLkOGPJHLYpZP3pxTQ5GZdqcU4l1m", // "admin123"
+  fullName: "Administrator",
+  email: "admin@example.com",
+  role: "admin"
+});

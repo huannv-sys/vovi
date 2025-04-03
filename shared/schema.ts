@@ -1,6 +1,69 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, real, pgEnum } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Phân quyền - xác định vai trò người dùng
+export const roleEnum = pgEnum('role', ['admin', 'operator', 'viewer']);
+
+// Users table - lưu thông tin người dùng
+export const users = pgTable("users", {
+  id: serial("id").primaryKey(),
+  username: text("username").notNull().unique(),
+  password: text("password").notNull(), // lưu password hash
+  email: text("email").unique(),
+  fullName: text("full_name"),
+  role: roleEnum("role").notNull().default('viewer'),
+  isActive: boolean("is_active").default(true),
+  lastLogin: timestamp("last_login"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// User Sessions table - lưu thông tin phiên đăng nhập
+export const sessions = pgTable("sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  token: text("token").notNull().unique(), // JWT token hoặc session token
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+});
+
+// User Activity Logs - ghi lại hoạt động người dùng
+export const userLogs = pgTable("user_logs", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  action: text("action").notNull(), // LOGIN, LOGOUT, UPDATE, DELETE, etc.
+  target: text("target"), // đối tượng tương tác - device, user, etc.
+  targetId: integer("target_id"), // id của đối tượng
+  details: text("details"), // chi tiết thêm
+  timestamp: timestamp("timestamp").defaultNow(),
+  ipAddress: text("ip_address"),
+});
+
+// Define Zod schemas for user-related models
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  lastLogin: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const loginUserSchema = z.object({
+  username: z.string().min(3, "Tên đăng nhập phải có ít nhất 3 ký tự"),
+  password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự"),
+});
+
+export const insertSessionSchema = createInsertSchema(sessions).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertUserLogSchema = createInsertSchema(userLogs).omit({
+  id: true,
+  timestamp: true,
+});
 
 // Device table - stores information about Mikrotik devices
 export const devices = pgTable("devices", {
@@ -183,3 +246,13 @@ export type InsertCapsmanAP = z.infer<typeof insertCapsmanAPSchema>;
 export type CapsmanClient = typeof capsmanClients.$inferSelect;
 export type InsertCapsmanClient = z.infer<typeof insertCapsmanClientSchema>;
 export type AlertSeverity = typeof alertSeverity[keyof typeof alertSeverity];
+
+// User related types
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Login = z.infer<typeof loginUserSchema>;
+export type Session = typeof sessions.$inferSelect;
+export type InsertSession = z.infer<typeof insertSessionSchema>;
+export type UserLog = typeof userLogs.$inferSelect;
+export type InsertUserLog = z.infer<typeof insertUserLogSchema>;
+export type Role = "admin" | "operator" | "viewer";
