@@ -1,0 +1,106 @@
+huannv@huannv:~/MikrotikMonitor$ sudo chmod +x install_mikrotik_monitor.sh
+huannv@huannv:~/MikrotikMonitor$ sudo ./install_mikrotik_monitor.sh
+=== BẮT ĐẦU CÀI ĐẶT MIKROTIK MONITORING ===
+[2025-04-03 23:40:44] Cài đặt các gói phụ thuộc...
+[2025-04-03 23:40:57] curl đã được cài đặt.
+[2025-04-03 23:40:57] wget đã được cài đặt.
+[2025-04-03 23:40:57] unzip đã được cài đặt.
+[2025-04-03 23:40:57] git đã được cài đặt.
+[2025-04-03 23:40:57] build-essential đã được cài đặt.
+[2025-04-03 23:40:57] Node.js v20.19.0 đã được cài đặt
+[2025-04-03 23:40:57] Cài đặt PM2 process manager...
+[2025-04-03 23:41:09] Tất cả các phụ thuộc đã được cài đặt thành công.
+[2025-04-03 23:41:09] Cài đặt Mikrotik Monitoring...
+Vui lòng nhập đường dẫn đến file zip của ứng dụng:
+/MikrotikMonitor/server
+[ERROR] File không tồn tại: /MikrotikMonitor/server
+huannv@huannv:~/MikrotikMonitor$ cd server
+huannv@huannv:~/MikrotikMonitor/server$ ^C
+huannv@huannv:~/MikrotikMonitor/server$ sudo chmod +x install_mikrotik_monitor.sh
+chmod: cannot access 'install_mikrotik_monitor.sh': No such file or directory
+huannv@huannv:~/MikrotikMonitor/server$ ls
+index.ts  routes.ts  services  storage.ts  vite.ts
+huannv@huannv:~/MikrotikMonitor/server$ cd
+huannv@huannv:~$ cd MikrotikMonitor
+huannv@huannv:~/MikrotikMonitor$ ls
+attached_assets              package-lock.json            temp
+client                       postcss.config.js            theme.json
+drizzle.config.ts            prepare_mikrotik_monitor.sh  tsconfig.json
+generated-icon.png           server                       vite.config.ts
+install_mikrotik_monitor.sh  shared
+package.json                 tailwind.config.ts
+huannv@huannv:~/MikrotikMonitor$ sudo chmod +x install_mikrotik_monitor.sh
+huannv@huannv:~/MikrotikMonitor$ sudo ./install_mikrotik_monitor.sh
+=== BẮT ĐẦU CÀI ĐẶT MIKROTIK MONITORING ===
+[2025-04-03 23:48:38] Cài đặt các gói phụ thuộc...
+[2025-04-03 23:48:41] curl đã được cài đặt.
+[2025-04-03 23:48:41] wget đã được cài đặt.
+[2025-04-03 23:48:41] unzip đã được cài đặt.
+[2025-04-03 23:48:42] git đã được cài đặt.
+[2025-04-03 23:48:42] build-essential đã được cài đặt.
+[2025-04-03 23:48:42] Node.js v20.19.0 đã được cài đặt
+[2025-04-03 23:48:42] PM2 đã được cài đặt
+[2025-04-03 23:48:42] Tất cả các phụ thuộc đã được cài đặt thành công.
+[2025-04-03 23:48:42] Cài đặt Mikrotik Monitoring...
+[2025-04-03 23:48:42] Sao chép dữ liệu từ thư mục hiện tại vào /opt/mikrotik-monitoring...
+[2025-04-03 23:48:42] Cài đặt các gói phụ thuộc npm...
+[2025-04-03 23:49:02] Ứng dụng đã được cài đặt thành công.
+[2025-04-03 23:49:02] Thiết lập cơ sở dữ liệu...
+[2025-04-03 23:49:02] Cài đặt PostgreSQL...
+[2025-04-03 23:49:48] Tạo cơ sở dữ liệu PostgreSQL...
+[2025-04-03 23:49:48] Cơ sở dữ liệu đã được cấu hình thành công.
+[2025-04-03 23:49:48] Thông tin kết nối đã được lưu vào /opt/mikrotik-monitoring/.env
+[2025-04-03 23:49:48] Cấu hình PM2 để quản lý ứng dụng...
+
+                        -------------
+
+__/\\\\\\\\\\\\\____/\\\\____________/\\\\____/\\\\\\\\\_____
+ _\/\\\/////////\\\_\/\\\\\\________/\\\\\\__/\\\///////\\\___
+  _\/\\\_______\/\\\_\/\\\//\\\____/\\\//\\\_\///______\//\\\__
+   _\/\\\\\\\\\\\\\/__\/\\\\///\\\/\\\/_\/\\\___________/\\\/___
+    _\/\\\/////////____\/\\\__\///\\\/___\/\\\________/\\\//_____
+     _\/\\\_____________\/\\\____\///_____\/\\\_____/\\\//________
+      _\/\\\_____________\/\\\_____________\/\\\___/\\\/___________
+       _\/\\\_____________\/\\\_____________\/\\\__/\\\\\\\\\\\\\\\_
+        _\///______________\///______________\///__\///////////////__
+
+
+                          Runtime Edition
+
+        PM2 is a Production Process Manager for Node.js applications
+                     with a built-in Load Balancer.
+
+                Start and Daemonize any application:
+                $ pm2 start app.js
+
+                Load Balance 4 instances of api.js:
+                $ pm2 start api.js -i 4
+
+                Monitor in production:
+                $ pm2 monitor
+
+                Make pm2 auto-boot at server restart:
+                $ pm2 startup
+
+                To go further checkout:
+                http://pm2.io/
+
+
+                        -------------
+
+[PM2] Spawning PM2 daemon with pm2_home=/root/.pm2
+[PM2] PM2 Successfully daemonized
+[PM2][ERROR] File ecosystem.config.js malformated
+ReferenceError: module is not defined
+    at file:///opt/mikrotik-monitoring/ecosystem.config.js:1:1
+    at ModuleJobSync.runSync (node:internal/modules/esm/module_job:387:35)
+    at ModuleLoader.importSyncForRequire (node:internal/modules/esm/loader:323:47)
+    at loadESMFromCJS (node:internal/modules/cjs/loader:1371:24)
+    at Module._compile (node:internal/modules/cjs/loader:1511:5)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1572:16)
+    at Module.load (node:internal/modules/cjs/loader:1275:32)
+    at Module._load (node:internal/modules/cjs/loader:1096:12)
+    at Module.require (node:internal/modules/cjs/loader:1298:19)
+    at require (node:internal/modules/helpers:182:18)
+[ERROR] Không thể khởi động ứng dụng với PM2
+huannv@huannv:~/MikrotikMonitor$

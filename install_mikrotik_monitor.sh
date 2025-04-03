@@ -149,7 +149,7 @@ setup_pm2() {
   cd $APP_DIR || error "Không thể truy cập thư mục ứng dụng"
   
   # Tạo file cấu hình PM2
-  cat > ecosystem.config.js << EOF
+  cat > ecosystem.config.cjs << EOF
 module.exports = {
   apps : [{
     name: 'mikrotik-monitor',
@@ -164,8 +164,14 @@ module.exports = {
 };
 EOF
   
+  # Tạo file npm start
+  cat > start.js << EOF
+const { exec } = require('child_process');
+exec('npm run dev', { stdio: 'inherit' });
+EOF
+
   # Khởi động ứng dụng với PM2
-  pm2 start ecosystem.config.js || error "Không thể khởi động ứng dụng với PM2"
+  pm2 start start.js --name mikrotik-monitor || error "Không thể khởi động ứng dụng với PM2"
   
   # Cấu hình PM2 khởi động cùng hệ thống
   pm2 save
