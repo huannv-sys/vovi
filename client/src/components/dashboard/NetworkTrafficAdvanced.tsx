@@ -67,18 +67,32 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
   const [selectedTimeFrame, setSelectedTimeFrame] = useState<string>("realtime");
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
   
-  // Fetch metrics data with periodic refreshing
-  const { data: metrics, isLoading: isLoadingMetrics, refetch: refetchMetrics } = useQuery<Metric[]>({ 
-    queryKey: deviceId ? ['/api/devices', deviceId, 'metrics'] : ['empty'],
+  // Fetch metrics data với kiểm tra quá trình gọi
+  const metricsEndpoint = deviceId ? `/api/devices/${deviceId}/metrics` : 'empty';
+  console.log("Endpoint gọi metrics:", metricsEndpoint);
+  
+  const { 
+    data: metrics, 
+    isLoading: isLoadingMetrics, 
+    refetch: refetchMetrics 
+  } = useQuery<Metric[]>({ 
+    queryKey: [metricsEndpoint],
     enabled: !!deviceId,
     refetchInterval: autoRefresh ? 3000 : false, // Auto refresh if enabled
+    retry: 3, // Thử lại 3 lần nếu thất bại
+    staleTime: 5000 // Dữ liệu cũ sau 5 giây
   });
   
   // Fetch interfaces data
-  const { data: interfaces, isLoading: isLoadingInterfaces } = useQuery<Interface[]>({
-    queryKey: deviceId ? ['/api/devices', deviceId, 'interfaces'] : ['empty-interfaces'],
+  const interfacesEndpoint = deviceId ? `/api/devices/${deviceId}/interfaces` : 'empty-interfaces';
+  
+  const { 
+    data: interfaces, 
+    isLoading: isLoadingInterfaces 
+  } = useQuery<Interface[]>({
+    queryKey: [interfacesEndpoint],
     enabled: !!deviceId,
-    refetchInterval: autoRefresh ? 5000 : false,
+    refetchInterval: autoRefresh ? 5000 : false
   });
   
   // Refresh data manually
@@ -97,11 +111,15 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
     
     // Kiểm tra nếu metrics có đúng cấu trúc không
     const isValidMetric = (metric: any) => {
+      console.log("Kiểm tra metric:", JSON.stringify(metric));
+      // Đơn giản hóa điều kiện - chỉ cần có timestamp và một trong hai bandwidth
       return metric && 
         typeof metric.timestamp === 'string' && 
-        typeof metric.deviceId === 'number' &&
-        (typeof metric.downloadBandwidth === 'number' || 
-         typeof metric.uploadBandwidth === 'number');
+        (typeof metric.deviceId === 'number') &&
+        (
+          (typeof metric.downloadBandwidth === 'number') || 
+          (typeof metric.uploadBandwidth === 'number')
+        );
     };
     
     // Lọc và giữ lại các metric hợp lệ
@@ -411,10 +429,17 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
   }
   
   // Kiểm tra nếu không có dữ liệu metrics hoặc interfaces
-  if (!metrics || metrics.length === 0 || !interfaces || interfaces.length === 0) {
+  const hasValidMetrics = metrics && Array.isArray(metrics) && metrics.length > 0;
+  const hasValidInterfaces = interfaces && Array.isArray(interfaces) && interfaces.length > 0;
+  
+  if (!hasValidMetrics || !hasValidInterfaces) {
     return (
       <div className="bg-gray-900 rounded-lg p-4 shadow-md flex flex-col items-center justify-center h-[600px]">
-        <p className="text-gray-400 mb-4">Không có dữ liệu từ thiết bị</p>
+        <p className="text-gray-400 mb-4">
+          {!hasValidMetrics && !hasValidInterfaces ? 'Không có dữ liệu từ thiết bị' : 
+           !hasValidMetrics ? 'Không có dữ liệu metrics từ thiết bị' : 
+           'Không có dữ liệu interfaces từ thiết bị'}
+        </p>
         <button 
           onClick={handleRefresh}
           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md flex items-center"
