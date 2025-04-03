@@ -171,26 +171,38 @@ const NetworkPage = () => {
         </TabsContent>
         
         <TabsContent value="traffic" className="space-y-4">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <div className="bg-[#0f172a] rounded-lg p-4">
+            <div className="flex space-x-2 mb-4">
+              <button className="bg-[#1e293b] text-white px-4 py-2 rounded-md focus:outline-none font-medium text-sm">Network Interfaces</button>
+              <button className="bg-[#0c4a6e] text-white px-4 py-2 rounded-md focus:outline-none font-medium text-sm">Traffic Analysis</button>
+              <button className="bg-[#1e293b] text-white px-4 py-2 rounded-md focus:outline-none font-medium text-sm">Network Topology</button>
+            </div>
+
+            <div className="bg-[#0c1e36] rounded-lg p-8 flex flex-col items-center justify-center min-h-[400px]">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400 mb-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M5 12.55a11 11 0 0 1 14.08 0" />
                 <path d="M1.42 9a16 16 0 0 1 21.16 0" />
                 <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
-                <line x1="12" y1="20" x2="12" y2="20" />
+                <circle cx="12" cy="20" r="1" />
               </svg>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Traffic Analysis Coming Soon</h3>
-              <p className="text-sm text-gray-500 text-center">
+              <h3 className="text-2xl font-medium text-gray-100 mb-3">Traffic Analysis Coming Soon</h3>
+              <p className="text-base text-gray-400 text-center max-w-md">
                 Detailed traffic analysis features will be available in a future update.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
         
         <TabsContent value="topology" className="space-y-4">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400 mb-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <div className="bg-[#0f172a] rounded-lg p-4">
+            <div className="flex space-x-2 mb-4">
+              <button className="bg-[#1e293b] text-white px-4 py-2 rounded-md focus:outline-none font-medium text-sm">Network Interfaces</button>
+              <button className="bg-[#1e293b] text-white px-4 py-2 rounded-md focus:outline-none font-medium text-sm">Traffic Analysis</button>
+              <button className="bg-[#0c4a6e] text-white px-4 py-2 rounded-md focus:outline-none font-medium text-sm">Network Topology</button>
+            </div>
+
+            <div className="bg-[#0c1e36] rounded-lg p-8 flex flex-col items-center justify-center min-h-[400px]">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400 mb-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="3" y="3" width="7" height="7"></rect>
                 <rect x="14" y="3" width="7" height="7"></rect>
                 <rect x="14" y="14" width="7" height="7"></rect>
@@ -200,12 +212,12 @@ const NetworkPage = () => {
                 <path d="M17 10v4"></path>
                 <path d="M10 17h4"></path>
               </svg>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Network Topology Coming Soon</h3>
-              <p className="text-sm text-gray-500 text-center">
+              <h3 className="text-2xl font-medium text-gray-100 mb-3">Network Topology Coming Soon</h3>
+              <p className="text-base text-gray-400 text-center max-w-md">
                 Visual network topology mapping will be available in a future update.
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

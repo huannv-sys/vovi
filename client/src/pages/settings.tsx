@@ -97,27 +97,24 @@ const SettingsPage = () => {
         </TabsList>
         
         <TabsContent value="general" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Data Collection Settings</CardTitle>
-              <CardDescription>
-                Configure how frequently data is collected from monitored devices
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="polling-interval">Polling Interval (seconds)</Label>
+          <div className="bg-[#0f172a] rounded-lg p-6">
+            <div className="space-y-6">
+              <h2 className="text-xl font-medium text-white">Polling Interval (seconds)</h2>
+              
+              <div className="space-y-4">
                 <div className="flex items-center space-x-4">
-                  <Slider
-                    id="polling-interval"
-                    min={5}
-                    max={300}
-                    step={5}
-                    value={[pollingInterval]}
-                    onValueChange={(value) => setPollingInterval(value[0])}
-                    className="flex-1"
-                  />
-                  <div className="w-16">
+                  <div className="flex-1">
+                    <Slider
+                      id="polling-interval"
+                      min={5}
+                      max={300}
+                      step={5}
+                      value={[pollingInterval]}
+                      onValueChange={(value) => setPollingInterval(value[0])}
+                      className="bg-blue-500"
+                    />
+                  </div>
+                  <div className="w-24">
                     <Input
                       type="number"
                       value={pollingInterval}
@@ -125,34 +122,39 @@ const SettingsPage = () => {
                       min={5}
                       max={300}
                       step={5}
+                      className="bg-[#1e293b] border-0 text-white text-center"
                     />
                   </div>
                 </div>
-                <p className="text-sm text-gray-500">
+                
+                <p className="text-sm text-gray-400">
                   Current setting: {pollingInterval} seconds
                 </p>
+                
+                <div>
+                  <Button 
+                    onClick={handleUpdatePollingInterval} 
+                    className="bg-[#0EA5E9] hover:bg-[#0284C7] text-white"
+                  >
+                    Save Changes
+                  </Button>
+                </div>
               </div>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={handleUpdatePollingInterval}>Save Changes</Button>
-            </CardFooter>
-          </Card>
+            </div>
+          </div>
           
-          <Card>
-            <CardHeader>
-              <CardTitle>User Interface Settings</CardTitle>
-              <CardDescription>
-                Customize the appearance and behavior of the dashboard
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <div className="bg-[#0f172a] rounded-lg p-6">
+            <h2 className="text-xl font-medium text-white mb-4">User Interface Settings</h2>
+            <p className="text-gray-400 text-sm mb-6">Customize the appearance and behavior of the dashboard</p>
+            
+            <div className="space-y-6">
               <div className="space-y-2">
-                <Label>Theme</Label>
-                <Select defaultValue="light">
-                  <SelectTrigger>
+                <Label className="text-gray-300">Theme</Label>
+                <Select defaultValue="system">
+                  <SelectTrigger className="bg-[#1e293b] border-0 text-white">
                     <SelectValue placeholder="Select theme" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#1e293b] border-[#334155] text-white">
                     <SelectItem value="light">Light</SelectItem>
                     <SelectItem value="dark">Dark</SelectItem>
                     <SelectItem value="system">System</SelectItem>
@@ -161,12 +163,12 @@ const SettingsPage = () => {
               </div>
               
               <div className="space-y-2">
-                <Label>Time Format</Label>
-                <Select defaultValue="12h">
-                  <SelectTrigger>
+                <Label className="text-gray-300">Time Format</Label>
+                <Select defaultValue="24h">
+                  <SelectTrigger className="bg-[#1e293b] border-0 text-white">
                     <SelectValue placeholder="Select time format" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-[#1e293b] border-[#334155] text-white">
                     <SelectItem value="12h">12-hour (AM/PM)</SelectItem>
                     <SelectItem value="24h">24-hour</SelectItem>
                   </SelectContent>
@@ -174,14 +176,17 @@ const SettingsPage = () => {
               </div>
               
               <div className="flex items-center justify-between">
-                <Label htmlFor="auto-refresh">Auto-refresh Dashboard</Label>
-                <Switch id="auto-refresh" defaultChecked />
+                <Label htmlFor="auto-refresh" className="text-gray-300">Auto-refresh Dashboard</Label>
+                <Switch id="auto-refresh" defaultChecked className="bg-[#0EA5E9] data-[state=checked]:bg-[#0EA5E9]" />
               </div>
-            </CardContent>
-            <CardFooter>
-              <Button>Save Changes</Button>
-            </CardFooter>
-          </Card>
+              
+              <div>
+                <Button className="bg-[#0EA5E9] hover:bg-[#0284C7] text-white">
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          </div>
         </TabsContent>
         
         <TabsContent value="notifications" className="space-y-4">
