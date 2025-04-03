@@ -14,7 +14,23 @@ import SystemMetrics from "@/components/dashboard/SystemMetrics";
 
 const Dashboard = () => {
   const [selectedDeviceId, setSelectedDeviceId] = useState<number | null>(null);
-  const [viewMode, setViewMode] = useState<'basic' | 'advanced'>('advanced');
+  const [viewMode, setViewMode] = useState<'basic' | 'advanced'>('basic');
+  
+  // Close the view mode selector when clicked outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.view-mode-switcher')) {
+        // If click is outside the view mode switcher, don't change anything
+        // (keeping this comment for future expandability)
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
   
   const { data: devices } = useQuery<Device[]>({ 
     queryKey: ['/api/devices'],
@@ -31,7 +47,7 @@ const Dashboard = () => {
     <div className="space-y-6">
       {/* View Mode Switcher */}
       <div className="flex justify-end mb-2">
-        <div className="inline-flex items-center rounded-md bg-gray-900 p-1">
+        <div className="view-mode-switcher inline-flex items-center rounded-md bg-gray-900 p-1">
           <button
             onClick={() => setViewMode('basic')}
             className={`px-3 py-1 text-sm rounded-md ${viewMode === 'basic' ? 'bg-gray-700 text-white' : 'text-gray-300'}`}
