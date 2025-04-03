@@ -75,16 +75,25 @@ setup_application() {
   # Tạo thư mục ứng dụng
   sudo mkdir -p $APP_DIR || error "Không thể tạo thư mục ứng dụng $APP_DIR"
   
-  # Yêu cầu người dùng cung cấp đường dẫn đến file zip
-  echo -e "${YELLOW}Vui lòng nhập đường dẫn đến file zip của ứng dụng:${NC}"
-  read ZIP_PATH
+  # Sử dụng thư mục hiện tại
+  CURRENT_DIR=$(pwd)
   
-  if [ ! -f "$ZIP_PATH" ]; then
-    error "File không tồn tại: $ZIP_PATH"
-  fi
+  log "Sao chép dữ liệu từ thư mục hiện tại vào $APP_DIR..."
   
-  log "Giải nén ứng dụng từ $ZIP_PATH vào $APP_DIR..."
-  sudo unzip -qq "$ZIP_PATH" -d $APP_DIR || error "Không thể giải nén file"
+  # Sao chép tất cả các file và thư mục trừ script cài đặt
+  sudo cp -r ./client $APP_DIR/ || error "Không thể sao chép thư mục client"
+  sudo cp -r ./server $APP_DIR/ || error "Không thể sao chép thư mục server"
+  sudo cp -r ./shared $APP_DIR/ || error "Không thể sao chép thư mục shared"
+  
+  # Sao chép các file cấu hình
+  sudo cp ./package.json $APP_DIR/ || error "Không thể sao chép package.json"
+  sudo cp ./package-lock.json $APP_DIR/ || log "Không tìm thấy package-lock.json, bỏ qua"
+  sudo cp ./drizzle.config.ts $APP_DIR/ || log "Không tìm thấy drizzle.config.ts, bỏ qua"
+  sudo cp ./postcss.config.js $APP_DIR/ || log "Không tìm thấy postcss.config.js, bỏ qua"
+  sudo cp ./tailwind.config.ts $APP_DIR/ || log "Không tìm thấy tailwind.config.ts, bỏ qua"
+  sudo cp ./theme.json $APP_DIR/ || log "Không tìm thấy theme.json, bỏ qua"
+  sudo cp ./tsconfig.json $APP_DIR/ || log "Không tìm thấy tsconfig.json, bỏ qua"
+  sudo cp ./vite.config.ts $APP_DIR/ || log "Không tìm thấy vite.config.ts, bỏ qua"
   
   # Di chuyển vào thư mục ứng dụng
   cd $APP_DIR || error "Không thể truy cập thư mục ứng dụng"
