@@ -143,6 +143,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch interfaces" });
     }
   });
+  
+  // Wireless Interface routes
+  router.get("/devices/:id/wireless", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      const wirelessInterfaces = await storage.getWirelessInterfaces(deviceId);
+      
+      res.json(wirelessInterfaces);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch wireless interfaces" });
+    }
+  });
+  
+  router.get("/wireless/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const wirelessInterface = await storage.getWirelessInterface(id);
+      
+      if (!wirelessInterface) {
+        return res.status(404).json({ message: "Wireless interface not found" });
+      }
+      
+      res.json(wirelessInterface);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch wireless interface" });
+    }
+  });
+  
+  // CAPsMAN routes
+  router.get("/devices/:id/capsman", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      const capsmanAPs = await storage.getCapsmanAPs(deviceId);
+      
+      res.json(capsmanAPs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch CAPsMAN APs" });
+    }
+  });
+  
+  router.get("/capsman/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const capsmanAP = await storage.getCapsmanAP(id);
+      
+      if (!capsmanAP) {
+        return res.status(404).json({ message: "CAPsMAN AP not found" });
+      }
+      
+      res.json(capsmanAP);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch CAPsMAN AP" });
+    }
+  });
 
   // Alert routes
   router.get("/alerts", async (req: Request, res: Response) => {

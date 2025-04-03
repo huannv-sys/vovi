@@ -1,4 +1,12 @@
-import type { InsertDevice, InsertMetric, InsertInterface, InsertAlert, AlertSeverity } from "@shared/schema";
+import type { 
+  InsertDevice, 
+  InsertMetric, 
+  InsertInterface, 
+  InsertAlert, 
+  AlertSeverity, 
+  InsertWirelessInterface,
+  InsertCapsmanAP
+} from "@shared/schema";
 import { storage } from "../storage";
 import { alertSeverity } from "@shared/schema";
 
@@ -108,7 +116,9 @@ class RouterOSClient {
         { id: 2, name: "ether2-office", rxBase: 37360025, txBase: 13493452, pattern: "office", comment: "Office Network" },
         { id: 3, name: "ether3-servers", rxBase: 128849017, txBase: 91750400, pattern: "server", comment: "Server Network" },
         { id: 4, name: "ether4-wifi", rxBase: 11200000, txBase: 4803481, pattern: "wifi", comment: "WiFi Network" },
-        { id: 5, name: "ether5-guest", rxBase: 57306112, txBase: 27086848, pattern: "guest", comment: "Guest Network" }
+        { id: 5, name: "ether5-guest", rxBase: 57306112, txBase: 27086848, pattern: "guest", comment: "Guest Network" },
+        { id: 6, name: "wlan1", rxBase: 15360025, txBase: 9493452, pattern: "wifi", comment: "Main WiFi" },
+        { id: 7, name: "wlan2", rxBase: 7892312, txBase: 3256891, pattern: "wifi", comment: "5GHz WiFi" }
       ];
       
       // Generate realistic traffic with time-based patterns that are consistent between polls
@@ -158,14 +168,16 @@ class RouterOSClient {
         const rxTraffic = Math.floor(iface.rxBase * rxMultiplier * progressiveGrowth * (1 + (timeBase % 1000) / 10000));
         const txTraffic = Math.floor(iface.txBase * txMultiplier * progressiveGrowth * (1 + (timeBase % 800) / 8000));
         
+        const type = iface.name.startsWith('wlan') ? 'wlan' : 'ether';
+        
         return {
           ".id": `*${iface.id}`,
           "name": iface.name,
-          "type": "ether",
+          "type": type,
           "mtu": 1500,
           "actual-mtu": 1500,
           "mac-address": `E4:8D:8C:26:A4:0${iface.id}`,
-          "running": iface.name !== "ether4-wifi" || Math.random() > 0.1, // ether4-wifi occasionally goes down
+          "running": (iface.name !== "ether4-wifi" && iface.name !== "wlan2") || Math.random() > 0.1, // interfaces occasionally go down
           "disabled": false,
           "comment": iface.comment,
           "link-downs": iface.name === "ether4-wifi" ? Math.floor(timeBase / 800) % 5 : 0, // WiFi interface has occasional link downs
@@ -184,6 +196,149 @@ class RouterOSClient {
         "current": 0.4,
         "power-consumption": 9.6
       };
+    }
+    
+    // CAPsMAN information - for CAPsMAN controller capabilities
+    if (command === "/caps-man/interface/print") {
+      // Only return data if device is configured as CAPsMAN
+      if (Math.random() > 0.5) { // Simulate that the device has CAPsMAN enabled
+        return [
+          {
+            ".id": "*1",
+            "name": "cap1",
+            "mac-address": "E4:8D:8C:26:B1:01",
+            "master-interface": "none",
+            "disabled": false
+          },
+          {
+            ".id": "*2",
+            "name": "cap2",
+            "mac-address": "E4:8D:8C:26:B1:02",
+            "master-interface": "none",
+            "disabled": false
+          }
+        ];
+      }
+      return [];
+    }
+    
+    // CAPsMAN remote AP list - controlled access points
+    if (command === "/caps-man/remote-cap/print") {
+      // Only return data if device is configured as CAPsMAN
+      if (Math.random() > 0.5) { // Simulate that the device has CAPsMAN enabled and APs connected
+        return [
+          {
+            ".id": "*1",
+            "identity": "AP-Floor1",
+            "address": "192.168.1.101",
+            "mac-address": "E4:8D:8C:27:C1:01",
+            "board": "RB951G-2HnD",
+            "version": "6.48.6",
+            "state": "running",
+            "radio-mac": "E4:8D:8C:27:C1:02",
+            "uptime": "11h45m20s",
+            "radio-name": "Mikrotik-Floor1"
+          },
+          {
+            ".id": "*2",
+            "identity": "AP-Floor2",
+            "address": "192.168.1.102",
+            "mac-address": "E4:8D:8C:27:C2:01",
+            "board": "RB951G-2HnD",
+            "version": "6.48.6",
+            "state": "running",
+            "radio-mac": "E4:8D:8C:27:C2:02",
+            "uptime": "23h56m10s",
+            "radio-name": "Mikrotik-Floor2"
+          }
+        ];
+      }
+      return [];
+    }
+    
+    // Wireless information - for local device wireless
+    if (command === "/interface/wireless/print") {
+      return [
+        {
+          ".id": "*1",
+          "name": "wlan1",
+          "default-name": "wlan1",
+          "mac-address": "E4:8D:8C:26:B1:01",
+          "arp": "enabled",
+          "disable-running-check": false,
+          "disabled": false,
+          "ssid": "MikroTik-Office",
+          "mode": "ap-bridge",
+          "band": "2ghz-b/g/n",
+          "frequency": "2437",
+          "channel-width": "20/40mhz-abobe",
+          "scan-list": "default",
+          "wireless-protocol": "802.11",
+          "rate-set": "default",
+          "noise-floor": -98,
+          "tx-power": 20,
+          "rx-chains": "0,1",
+          "tx-chains": "0,1",
+          "running": true
+        },
+        {
+          ".id": "*2",
+          "name": "wlan2",
+          "default-name": "wlan2",
+          "mac-address": "E4:8D:8C:26:B1:02",
+          "arp": "enabled",
+          "disable-running-check": false,
+          "disabled": false,
+          "ssid": "MikroTik-Office-5G",
+          "mode": "ap-bridge",
+          "band": "5ghz-a/n/ac",
+          "frequency": "5240",
+          "channel-width": "20/40/80mhz",
+          "scan-list": "default",
+          "wireless-protocol": "802.11",
+          "rate-set": "default",
+          "noise-floor": -105,
+          "tx-power": 20,
+          "rx-chains": "0,1",
+          "tx-chains": "0,1",
+          "running": true
+        }
+      ];
+    }
+    
+    // Wireless client connection information
+    if (command === "/interface/wireless/registration-table/print") {
+      const currentTime = Date.now();
+      const hourOfDay = (new Date().getHours() + new Date().getMinutes() / 60) / 24;
+      const dayFactor = Math.sin(hourOfDay * 2 * Math.PI); // Daily cycle
+      
+      // Generate number of clients based on time of day (more in office hours/evening)
+      const clientBase = 8; // Base number of clients
+      const timeVariation = Math.floor(10 * (dayFactor > 0 ? dayFactor : 0.3 * Math.abs(dayFactor))); // More during day/evening
+      const totalClients = clientBase + timeVariation;
+      
+      const clients = [];
+      
+      for (let i = 1; i <= totalClients; i++) {
+        const interface_name = Math.random() > 0.3 ? "wlan1" : "wlan2";
+        const signalRandom = Math.random() * 20 - 70; // Signal between -70 and -50 dBm
+        const signal = Math.floor(signalRandom);
+        
+        clients.push({
+          ".id": `*${i}`,
+          "interface": interface_name,
+          "mac-address": `${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}:${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}:${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}:${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}:${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}:${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}`,
+          "ap": false,
+          "uptime": `${Math.floor(Math.random() * 12)}h${Math.floor(Math.random() * 60)}m`,
+          "signal-strength": signal,
+          "tx-rate": `${Math.floor(58 + Math.random() * 30)}Mbps`,
+          "rx-rate": `${Math.floor(65 + Math.random() * 35)}Mbps`,
+          "packets": Math.floor(1000 + Math.random() * 50000),
+          "bytes": Math.floor(100000 + Math.random() * 10000000)
+        });
+      }
+      
+      return clients;
     }
     
     return {};
@@ -330,6 +485,12 @@ export class MikrotikService {
       // Collect interface information
       await this.collectInterfaceStats(deviceId);
       
+      // Collect wireless interface information
+      await this.collectWirelessStats(deviceId);
+      
+      // Collect CAPsMAN information
+      await this.collectCapsmanStats(deviceId);
+      
       return true;
     } catch (error) {
       console.error(`Failed to collect metrics for device ${deviceId}:`, error);
@@ -434,6 +595,208 @@ export class MikrotikService {
     };
     
     await storage.createAlert(alert);
+  }
+  
+  private async collectWirelessStats(deviceId: number): Promise<void> {
+    try {
+      const client = this.clients.get(deviceId);
+      if (!client) {
+        throw new Error(`Not connected to device ${deviceId}`);
+      }
+      
+      // Get wireless interfaces
+      const wirelessInterfaces = await client.executeCommand("/interface/wireless/print");
+      if (!wirelessInterfaces || wirelessInterfaces.length === 0) {
+        // Cập nhật device với thông tin không có wireless
+        await storage.updateDevice(deviceId, { hasWireless: false });
+        return; // No wireless interfaces on this device
+      }
+      
+      // Cập nhật device với thông tin có wireless
+      await storage.updateDevice(deviceId, { hasWireless: true });
+      
+      // Get wireless registration table (connected clients)
+      const regTable = await client.executeCommand("/interface/wireless/registration-table/print");
+      
+      // Process each wireless interface
+      for (const wInterface of wirelessInterfaces) {
+        const existingInterfaces = await storage.getWirelessInterfaces(deviceId);
+        const existingInterface = existingInterfaces.find((i) => i.name === wInterface.name);
+        
+        // Count clients for this interface
+        const clientCount = regTable.filter((client: any) => client.interface === wInterface.name).length;
+        
+        // Find the corresponding ethernet interface if exists
+        const allInterfaces = await storage.getInterfaces(deviceId);
+        const etherInterface = allInterfaces.find((i) => i.name === wInterface.name);
+        
+        // Convert frequency to a string to match schema
+        const channelStr = wInterface.frequency ? wInterface.frequency.toString() : null;
+        const frequencyNum = wInterface.frequency ? parseInt(wInterface.frequency) : null;
+        
+        if (existingInterface) {
+          // Update existing wireless interface
+          await storage.updateWirelessInterface(existingInterface.id, {
+            macAddress: wInterface["mac-address"],
+            ssid: wInterface.ssid,
+            band: wInterface.band,
+            channel: channelStr,
+            frequency: frequencyNum,
+            noiseFloor: wInterface["noise-floor"],
+            txPower: wInterface["tx-power"],
+            mode: wInterface.mode,
+            signalStrength: null, // Only applicable for client mode
+            clients: clientCount,
+            isActive: wInterface.running
+          });
+          
+          // Check for changes in status to create alerts
+          if (existingInterface.isActive && !wInterface.running) {
+            await this.createAlert(
+              deviceId, 
+              alertSeverity.WARNING, 
+              "Wireless Interface Down", 
+              `Wireless interface ${wInterface.name} is down`
+            );
+          } else if (!existingInterface.isActive && wInterface.running) {
+            await this.createAlert(
+              deviceId, 
+              alertSeverity.INFO, 
+              "Wireless Interface Up", 
+              `Wireless interface ${wInterface.name} is up`
+            );
+          }
+          
+          // If client count changes significantly, generate an alert
+          if ((existingInterface.clients || 0) > 0 && clientCount === 0) {
+            await this.createAlert(
+              deviceId, 
+              alertSeverity.WARNING, 
+              "No Wireless Clients", 
+              `Wireless interface ${wInterface.name} has no connected clients`
+            );
+          }
+        } else {
+          // Create new wireless interface
+          const newWirelessInterface: InsertWirelessInterface = {
+            deviceId,
+            name: wInterface.name,
+            interfaceId: etherInterface ? etherInterface.id : null,
+            macAddress: wInterface["mac-address"],
+            ssid: wInterface.ssid,
+            band: wInterface.band,
+            channel: channelStr,
+            frequency: frequencyNum,
+            noiseFloor: wInterface["noise-floor"],
+            txPower: wInterface["tx-power"],
+            mode: wInterface.mode,
+            signalStrength: null, // Only applicable for client mode
+            clients: clientCount,
+            isActive: wInterface.running
+          };
+          
+          await storage.createWirelessInterface(newWirelessInterface);
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to collect wireless stats for device ${deviceId}:`, error);
+    }
+  }
+  
+  private async collectCapsmanStats(deviceId: number): Promise<void> {
+    try {
+      const client = this.clients.get(deviceId);
+      if (!client) {
+        throw new Error(`Not connected to device ${deviceId}`);
+      }
+      
+      // Check if device has CAPsMAN interfaces
+      const capsmanInterfaces = await client.executeCommand("/caps-man/interface/print");
+      if (!capsmanInterfaces || capsmanInterfaces.length === 0) {
+        // Cập nhật device với thông tin không có CAPsMAN
+        await storage.updateDevice(deviceId, { hasCAPsMAN: false });
+        return; // No CAPsMAN on this device
+      }
+      
+      // Cập nhật device với thông tin có CAPsMAN
+      await storage.updateDevice(deviceId, { hasCAPsMAN: true });
+      
+      // Get remote CAPs (access points managed by this controller)
+      const remoteCaps = await client.executeCommand("/caps-man/remote-cap/print");
+      if (!remoteCaps || remoteCaps.length === 0) {
+        return; // No remote CAPs connected
+      }
+      
+      // Process each remote CAP
+      for (const cap of remoteCaps) {
+        const existingAPs = await storage.getCapsmanAPs(deviceId);
+        const existingAP = existingAPs.find((ap) => ap.macAddress === cap["mac-address"]);
+        
+        if (existingAP) {
+          // Update existing AP
+          await storage.updateCapsmanAP(existingAP.id, {
+            identity: cap.identity,
+            model: cap.board,
+            serialNumber: null, // Not available in this data
+            version: cap.version,
+            radioName: cap["radio-name"],
+            radioMac: cap["radio-mac"],
+            state: cap.state,
+            ipAddress: cap.address,
+            clients: Math.floor(Math.random() * 15), // Would be calculated from actual client data
+            uptime: cap.uptime
+          });
+          
+          // Check for state changes
+          if (existingAP.state !== cap.state) {
+            if (cap.state === "running") {
+              await this.createAlert(
+                deviceId, 
+                alertSeverity.INFO, 
+                "CAPsMAN AP Connected", 
+                `CAPsMAN AP ${cap.identity} is now running`
+              );
+            } else if (cap.state === "disassociated" || cap.state === "disconnected") {
+              await this.createAlert(
+                deviceId, 
+                alertSeverity.WARNING, 
+                "CAPsMAN AP Disconnected", 
+                `CAPsMAN AP ${cap.identity} is disconnected`
+              );
+            }
+          }
+        } else {
+          // Create new CAPsMAN AP
+          const newCapsmanAP: InsertCapsmanAP = {
+            deviceId,
+            name: cap.identity,
+            macAddress: cap["mac-address"],
+            identity: cap.identity,
+            model: cap.board,
+            serialNumber: null, // Not available in this data
+            version: cap.version,
+            radioName: cap["radio-name"],
+            radioMac: cap["radio-mac"],
+            state: cap.state,
+            ipAddress: cap.address,
+            clients: Math.floor(Math.random() * 15), // Would be calculated from actual client data
+            uptime: cap.uptime
+          };
+          
+          await storage.createCapsmanAP(newCapsmanAP);
+          
+          // Generate alert for new AP
+          await this.createAlert(
+            deviceId, 
+            alertSeverity.INFO, 
+            "New CAPsMAN AP Detected", 
+            `New CAPsMAN AP ${cap.identity} has been detected`
+          );
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to collect CAPsMAN stats for device ${deviceId}:`, error);
+    }
   }
   
   public async discoverDevices(subnet: string): Promise<number> {

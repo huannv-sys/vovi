@@ -7,10 +7,16 @@ import {
   type InsertInterface,
   type Alert,
   type InsertAlert,
+  type WirelessInterface,
+  type InsertWirelessInterface,
+  type CapsmanAP,
+  type InsertCapsmanAP,
   devices,
   metrics,
   interfaces,
   alerts,
+  wirelessInterfaces,
+  capsmanAPs,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -37,6 +43,20 @@ export interface IStorage {
   createAlert(alert: InsertAlert): Promise<Alert>;
   acknowledgeAlert(id: number): Promise<Alert | undefined>;
   acknowledgeAllAlerts(deviceId?: number): Promise<number>;
+  
+  // Wireless Interface operations
+  getWirelessInterfaces(deviceId: number): Promise<WirelessInterface[]>;
+  getWirelessInterface(id: number): Promise<WirelessInterface | undefined>;
+  createWirelessInterface(wireless: InsertWirelessInterface): Promise<WirelessInterface>;
+  updateWirelessInterface(id: number, wireless: Partial<WirelessInterface>): Promise<WirelessInterface | undefined>;
+  deleteWirelessInterface(id: number): Promise<boolean>;
+  
+  // CAPsMAN AP operations
+  getCapsmanAPs(deviceId: number): Promise<CapsmanAP[]>;
+  getCapsmanAP(id: number): Promise<CapsmanAP | undefined>;
+  createCapsmanAP(ap: InsertCapsmanAP): Promise<CapsmanAP>;
+  updateCapsmanAP(id: number, ap: Partial<CapsmanAP>): Promise<CapsmanAP | undefined>;
+  deleteCapsmanAP(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -44,20 +64,28 @@ export class MemStorage implements IStorage {
   private metrics: Map<number, Metric>;
   private interfaces: Map<number, Interface>;
   private alerts: Map<number, Alert>;
+  private wirelessInterfaces: Map<number, WirelessInterface>;
+  private capsmanAPs: Map<number, CapsmanAP>;
   private deviceIdCounter: number;
   private metricIdCounter: number;
   private interfaceIdCounter: number;
   private alertIdCounter: number;
+  private wirelessInterfaceIdCounter: number;
+  private capsmanAPIdCounter: number;
 
   constructor() {
     this.devices = new Map();
     this.metrics = new Map();
     this.interfaces = new Map();
     this.alerts = new Map();
+    this.wirelessInterfaces = new Map();
+    this.capsmanAPs = new Map();
     this.deviceIdCounter = 1;
     this.metricIdCounter = 1;
     this.interfaceIdCounter = 1;
     this.alertIdCounter = 1;
+    this.wirelessInterfaceIdCounter = 1;
+    this.capsmanAPIdCounter = 1;
 
     // Add sample device for initial testing
     this.createDevice({
@@ -105,7 +133,9 @@ export class MemStorage implements IStorage {
       firmware: insertDevice.firmware || null,
       cpu: insertDevice.cpu || null,
       totalMemory: insertDevice.totalMemory || null,
-      storage: insertDevice.storage || null
+      storage: insertDevice.storage || null,
+      hasCAPsMAN: false,
+      hasWireless: false
     };
     this.devices.set(id, device);
     return device;
@@ -147,7 +177,8 @@ export class MemStorage implements IStorage {
       totalMemory: insertMetric.totalMemory || null,
       temperature: insertMetric.temperature || null,
       uploadBandwidth: insertMetric.uploadBandwidth || null,
-      downloadBandwidth: insertMetric.downloadBandwidth || null
+      downloadBandwidth: insertMetric.downloadBandwidth || null,
+      boardTemp: insertMetric.boardTemp || null
     };
     this.metrics.set(id, metric);
     return metric;
@@ -248,6 +279,101 @@ export class MemStorage implements IStorage {
     }
     
     return count;
+  }
+
+  // Wireless Interface operations
+  async getWirelessInterfaces(deviceId: number): Promise<WirelessInterface[]> {
+    return Array.from(this.wirelessInterfaces.values())
+      .filter((wifiInterface) => wifiInterface.deviceId === deviceId);
+  }
+
+  async getWirelessInterface(id: number): Promise<WirelessInterface | undefined> {
+    return this.wirelessInterfaces.get(id);
+  }
+
+  async createWirelessInterface(insertWirelessInterface: InsertWirelessInterface): Promise<WirelessInterface> {
+    const id = this.wirelessInterfaceIdCounter++;
+    const wifiInterface: WirelessInterface = { 
+      ...insertWirelessInterface, 
+      id,
+      name: insertWirelessInterface.name,
+      deviceId: insertWirelessInterface.deviceId,
+      interfaceId: insertWirelessInterface.interfaceId || null,
+      macAddress: insertWirelessInterface.macAddress || null,
+      ssid: insertWirelessInterface.ssid || null,
+      band: insertWirelessInterface.band || null,
+      channel: insertWirelessInterface.channel || null,
+      frequency: insertWirelessInterface.frequency || null,
+      noiseFloor: insertWirelessInterface.noiseFloor || null,
+      txPower: insertWirelessInterface.txPower || null,
+      signalStrength: insertWirelessInterface.signalStrength || null,
+      mode: insertWirelessInterface.mode || null,
+      clients: insertWirelessInterface.clients || 0,
+      isActive: insertWirelessInterface.isActive !== undefined ? insertWirelessInterface.isActive : true,
+      lastUpdated: new Date()
+    };
+    this.wirelessInterfaces.set(id, wifiInterface);
+    return wifiInterface;
+  }
+
+  async updateWirelessInterface(id: number, updateInterface: Partial<WirelessInterface>): Promise<WirelessInterface | undefined> {
+    const wifiInterface = this.wirelessInterfaces.get(id);
+    if (!wifiInterface) return undefined;
+
+    const updatedWirelessInterface = { ...wifiInterface, ...updateInterface };
+    this.wirelessInterfaces.set(id, updatedWirelessInterface);
+    return updatedWirelessInterface;
+  }
+
+  async deleteWirelessInterface(id: number): Promise<boolean> {
+    return this.wirelessInterfaces.delete(id);
+  }
+
+  // CAPsMAN AP operations
+  async getCapsmanAPs(deviceId: number): Promise<CapsmanAP[]> {
+    return Array.from(this.capsmanAPs.values())
+      .filter((ap) => ap.deviceId === deviceId);
+  }
+
+  async getCapsmanAP(id: number): Promise<CapsmanAP | undefined> {
+    return this.capsmanAPs.get(id);
+  }
+
+  async createCapsmanAP(insertCapsmanAP: InsertCapsmanAP): Promise<CapsmanAP> {
+    const id = this.capsmanAPIdCounter++;
+    const capsmanAP: CapsmanAP = { 
+      ...insertCapsmanAP, 
+      id,
+      deviceId: insertCapsmanAP.deviceId,
+      name: insertCapsmanAP.name,
+      macAddress: insertCapsmanAP.macAddress,
+      identity: insertCapsmanAP.identity || null,
+      model: insertCapsmanAP.model || null,
+      serialNumber: insertCapsmanAP.serialNumber || null,
+      version: insertCapsmanAP.version || null,
+      radioName: insertCapsmanAP.radioName || null,
+      radioMac: insertCapsmanAP.radioMac || null,
+      state: insertCapsmanAP.state || null,
+      ipAddress: insertCapsmanAP.ipAddress || null,
+      clients: insertCapsmanAP.clients || 0,
+      uptime: insertCapsmanAP.uptime || null,
+      lastSeen: new Date()
+    };
+    this.capsmanAPs.set(id, capsmanAP);
+    return capsmanAP;
+  }
+
+  async updateCapsmanAP(id: number, updateAP: Partial<CapsmanAP>): Promise<CapsmanAP | undefined> {
+    const capsmanAP = this.capsmanAPs.get(id);
+    if (!capsmanAP) return undefined;
+
+    const updatedCapsmanAP = { ...capsmanAP, ...updateAP };
+    this.capsmanAPs.set(id, updatedCapsmanAP);
+    return updatedCapsmanAP;
+  }
+
+  async deleteCapsmanAP(id: number): Promise<boolean> {
+    return this.capsmanAPs.delete(id);
   }
 }
 
