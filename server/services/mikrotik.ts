@@ -39,26 +39,52 @@ class RouterOSClient {
     }
     
     // In production, we would execute the actual command
-    // Since this is a mock, we'll return synthetic responses based on the command
+    // Since this is a mock, we'll return more realistic and synchronized data
     if (command === "/system/resource/print") {
-      // Get more realistic fluctuating values
-      const baseLoad = 30; // Base CPU load around 30%
-      const loadVariation = Math.sin(Date.now() / 10000) * 15; // Fluctuate ±15% in a sine wave
-      const randomSpike = Math.random() > 0.9 ? Math.random() * 25 : 0; // Occasional spike
+      // Get more realistic fluctuating values with better synchronization
+      const currentTime = Date.now();
+      const timeOfDay = (currentTime % (24 * 60 * 60 * 1000)) / (24 * 60 * 60 * 1000); // 0-1 representing time of day
       
-      // Memory usage typically between 40-60% with occasional higher usage
-      const baseMemUsage = 0.5; // 50% usage on average
-      const memVariation = Math.sin(Date.now() / 20000) * 0.1; // Fluctuate ±10% in a sine wave
+      // CPU load follows a more realistic pattern based on time of day
+      // Morning/evening peaks, lower at night
+      const timeComponent = Math.sin(timeOfDay * 2 * Math.PI) * 15;
+      const baseLoad = 30 + timeComponent; // Base CPU load varies by time of day
+      
+      // Add small variations for realism
+      const shortCycle = Math.sin(currentTime / 60000) * 5; // 1-minute cycle
+      const mediumCycle = Math.sin(currentTime / 300000) * 8; // 5-minute cycle
+      
+      // Random component for spikes/variation
+      const randomComponent = Math.random() * 10 - 5;
+      
+      // Calculate CPU load with constraints
+      let cpuLoad = baseLoad + shortCycle + mediumCycle + randomComponent;
+      cpuLoad = Math.max(5, Math.min(95, cpuLoad)); // Keep between 5% and 95%
+      
+      // Memory usage correlates somewhat with CPU but has its own pattern
+      const memUsageBase = 0.4 + timeComponent/100; // 40% base + time component
+      const memRandom = Math.random() * 0.1 - 0.05; // +/- 5%
+      const memUsage = Math.max(0.1, Math.min(0.9, memUsageBase + memRandom));
+      
       const totalMem = 4 * 1024 * 1024 * 1024; // 4GB
       
-      // Temperature is influenced by CPU load but changes more slowly
-      const baseTemp = 45;
-      const tempVariation = Math.sin(Date.now() / 30000) * 5;
+      // Temperature correlates with CPU load but changes more slowly
+      const tempBase = 40 + (cpuLoad / 100) * 15;
+      const tempNoise = Math.sin(currentTime / 600000) * 2; // 10-minute cycle
+      const temperature = Math.floor(tempBase + tempNoise);
+      
+      // Calculate uptime from system start (increasing realistically)
+      const systemStartTime = new Date('2025-03-29T00:00:00').getTime(); // Example start date
+      const uptimeMs = currentTime - systemStartTime;
+      const uptimeDays = uptimeMs / (1000 * 60 * 60 * 24);
+      const uptimeHours = (uptimeDays % 1) * 24;
+      const uptimeMinutes = (uptimeHours % 1) * 60;
+      const uptimeFormatted = `${Math.floor(uptimeDays)}d ${Math.floor(uptimeHours)}h ${Math.floor(uptimeMinutes)}m`;
       
       return {
-        "uptime": "5.0 days",
-        "cpu-load": Math.floor(baseLoad + loadVariation + randomSpike),
-        "memory-usage": Math.floor((baseMemUsage + memVariation) * totalMem),
+        "uptime": uptimeFormatted,
+        "cpu-load": Math.floor(cpuLoad),
+        "memory-usage": Math.floor(memUsage * totalMem),
         "total-memory": totalMem,
         "cpu-count": 2,
         "cpu-frequency": 1400,
@@ -66,115 +92,89 @@ class RouterOSClient {
         "board-name": "RouterOS CRS309-1G-8S+",
         "version": "7.8 (stable)",
         "factory-software": "7.16.2",
-        "temperature": Math.floor(baseTemp + tempVariation + (loadVariation / 3)),
+        "temperature": temperature,
         "serial-number": "AC43086D277B",
       };
     }
     
     if (command === "/interface/print") {
-      // Generate varying traffic for interfaces
-      const time = Date.now();
+      // Generate more realistic traffic that synchronizes between calls
+      const currentTime = Date.now();
+      const timeBase = Math.floor(currentTime / 10000); // Update every 10 seconds
       
-      // Each interface gets a different pattern of traffic
-      const generateTraffic = (baseRx: number, baseTx: number, id: number) => {
-        // Create realistic looking time-varying traffic
-        const cyclePosition = (time / 10000 + id) % (2 * Math.PI); // Different phase per interface
-        const dailyCycle = Math.sin(time / (24 * 60 * 60 * 1000) * 2 * Math.PI); // Day/night cycle
+      // Store traffic pattern seeds to maintain consistency between polling intervals
+      const interfaceSeeds = [
+        { id: 1, name: "ether1-gateway", rxBase: 48013312, txBase: 4803481, pattern: "internet", comment: "Gateway" },
+        { id: 2, name: "ether2-office", rxBase: 37360025, txBase: 13493452, pattern: "office", comment: "Office Network" },
+        { id: 3, name: "ether3-servers", rxBase: 128849017, txBase: 91750400, pattern: "server", comment: "Server Network" },
+        { id: 4, name: "ether4-wifi", rxBase: 11200000, txBase: 4803481, pattern: "wifi", comment: "WiFi Network" },
+        { id: 5, name: "ether5-guest", rxBase: 57306112, txBase: 27086848, pattern: "guest", comment: "Guest Network" }
+      ];
+      
+      // Generate realistic traffic with time-based patterns that are consistent between polls
+      const interfaces = interfaceSeeds.map(iface => {
+        // Apply different traffic patterns based on interface type
+        let rxMultiplier = 1.0;
+        let txMultiplier = 1.0;
         
-        // Generate incrementing traffic with realistic patterns
-        const rxMultiplier = 1 + 0.3 * Math.sin(cyclePosition) + 0.1 * dailyCycle;
-        const txMultiplier = 1 + 0.2 * Math.cos(cyclePosition) + 0.1 * dailyCycle;
+        const hourOfDay = (new Date().getHours() + new Date().getMinutes() / 60) / 24;
+        const dayFactor = Math.sin(hourOfDay * 2 * Math.PI); // Daily cycle
         
-        // Random burst in traffic occasionally
-        const burstChance = Math.random() > 0.95;
-        const rxBurst = burstChance ? Math.random() * 1.5 : 1;
-        const txBurst = burstChance ? Math.random() * 1.2 : 1;
+        // Interface-specific patterns
+        switch(iface.pattern) {
+          case "internet":
+            // Internet gateway has higher morning/evening peaks
+            rxMultiplier = 1.0 + 0.5 * Math.abs(dayFactor) + 0.1 * Math.sin(timeBase / 36 + iface.id);
+            txMultiplier = 1.0 + 0.3 * Math.abs(dayFactor) + 0.1 * Math.cos(timeBase / 24 + iface.id);
+            break;
+          case "office":
+            // Office network: busy during work hours, quiet at night
+            rxMultiplier = 1.0 + 0.7 * (dayFactor > 0 ? dayFactor : 0) + 0.15 * Math.sin(timeBase / 30);
+            txMultiplier = 1.0 + 0.4 * (dayFactor > 0 ? dayFactor : 0) + 0.12 * Math.cos(timeBase / 40);
+            break;
+          case "server":
+            // Servers: more constant traffic with periodic spikes for backups/updates
+            rxMultiplier = 1.0 + 0.2 * Math.abs(dayFactor) + 0.4 * (Math.sin(timeBase / 180) > 0.8 ? Math.sin(timeBase / 180) : 0);
+            txMultiplier = 1.0 + 0.2 * Math.abs(dayFactor) + 0.5 * (Math.cos(timeBase / 200) > 0.85 ? Math.cos(timeBase / 200) : 0);
+            break;
+          case "wifi":
+            // WiFi: peaks during evening, moderate during day, low at night
+            rxMultiplier = 1.0 + 0.8 * (dayFactor < 0 ? Math.abs(dayFactor) : 0.5 * dayFactor) + 0.2 * Math.sin(timeBase / 45);
+            txMultiplier = 1.0 + 0.6 * (dayFactor < 0 ? Math.abs(dayFactor) : 0.5 * dayFactor) + 0.15 * Math.cos(timeBase / 50);
+            break;
+          case "guest":
+            // Guest network: random patterns, less predictable
+            rxMultiplier = 1.0 + 0.4 * Math.abs(dayFactor) + 0.4 * Math.sin(timeBase / 22 + iface.id * 2);
+            txMultiplier = 1.0 + 0.3 * Math.abs(dayFactor) + 0.3 * Math.cos(timeBase / 18 + iface.id * 2);
+            break;
+        }
+        
+        // Add progressive growth to traffic counters to simulate accumulating traffic
+        // These grow continuously but with variations in rate
+        const timeScaleFactor = currentTime / (1000 * 60 * 60); // Hours since epoch
+        const progressiveGrowth = 1 + timeScaleFactor * 0.01; // Grows slowly over time
+        
+        // Calculate final traffic values with accumulated growth
+        const rxTraffic = Math.floor(iface.rxBase * rxMultiplier * progressiveGrowth * (1 + (timeBase % 1000) / 10000));
+        const txTraffic = Math.floor(iface.txBase * txMultiplier * progressiveGrowth * (1 + (timeBase % 800) / 8000));
         
         return {
-          rx: Math.floor(baseRx * rxMultiplier * rxBurst),
-          tx: Math.floor(baseTx * txMultiplier * txBurst)
+          ".id": `*${iface.id}`,
+          "name": iface.name,
+          "type": "ether",
+          "mtu": 1500,
+          "actual-mtu": 1500,
+          "mac-address": `E4:8D:8C:26:A4:0${iface.id}`,
+          "running": iface.name !== "ether4-wifi" || Math.random() > 0.1, // ether4-wifi occasionally goes down
+          "disabled": false,
+          "comment": iface.comment,
+          "link-downs": iface.name === "ether4-wifi" ? Math.floor(timeBase / 800) % 5 : 0, // WiFi interface has occasional link downs
+          "rx-byte": rxTraffic,
+          "tx-byte": txTraffic
         };
-      };
+      });
       
-      // Use traffic patterns appropriate for each interface
-      const traffic1 = generateTraffic(480133120, 48034816, 1);
-      const traffic2 = generateTraffic(373600256, 134934528, 2);
-      const traffic3 = generateTraffic(1288490172, 917504000, 3);
-      const traffic4 = generateTraffic(112000000, 48034816, 4);
-      const traffic5 = generateTraffic(573061120, 270868480, 5);
-      
-      return [
-        {
-          ".id": "*1",
-          "name": "ether1-gateway",
-          "type": "ether",
-          "mtu": 1500,
-          "actual-mtu": 1500,
-          "mac-address": "E4:8D:8C:26:A4:01",
-          "running": true,
-          "disabled": false,
-          "comment": "Gateway",
-          "link-downs": 0,
-          "rx-byte": traffic1.rx,
-          "tx-byte": traffic1.tx
-        },
-        {
-          ".id": "*2",
-          "name": "ether2-office",
-          "type": "ether",
-          "mtu": 1500,
-          "actual-mtu": 1500,
-          "mac-address": "E4:8D:8C:26:A4:02",
-          "running": true,
-          "disabled": false,
-          "comment": "Office Network",
-          "link-downs": 0,
-          "rx-byte": traffic2.rx,
-          "tx-byte": traffic2.tx
-        },
-        {
-          ".id": "*3",
-          "name": "ether3-servers",
-          "type": "ether",
-          "mtu": 1500,
-          "actual-mtu": 1500,
-          "mac-address": "E4:8D:8C:26:A4:03",
-          "running": true,
-          "disabled": false,
-          "comment": "Server Network",
-          "link-downs": 0,
-          "rx-byte": traffic3.rx,
-          "tx-byte": traffic3.tx
-        },
-        {
-          ".id": "*4",
-          "name": "ether4-wifi",
-          "type": "ether",
-          "mtu": 1500,
-          "actual-mtu": 1500,
-          "mac-address": "E4:8D:8C:26:A4:04",
-          "running": true, // Was false, now active to show data
-          "disabled": false,
-          "comment": "WiFi Network",
-          "link-downs": 1,
-          "rx-byte": traffic4.rx,
-          "tx-byte": traffic4.tx
-        },
-        {
-          ".id": "*5",
-          "name": "ether5-guest",
-          "type": "ether",
-          "mtu": 1500,
-          "actual-mtu": 1500,
-          "mac-address": "E4:8D:8C:26:A4:05",
-          "running": true,
-          "disabled": false,
-          "comment": "Guest Network",
-          "link-downs": 0,
-          "rx-byte": traffic5.rx,
-          "tx-byte": traffic5.tx
-        }
-      ];
+      return interfaces;
     }
     
     if (command === "/system/health/print") {

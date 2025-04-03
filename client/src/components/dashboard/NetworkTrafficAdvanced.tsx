@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Metric } from "@shared/schema";
+import { Metric, Interface } from "@shared/schema";
 import { 
   AreaChart, 
   Area, 
@@ -9,11 +9,22 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer,
-  Legend
+  Legend,
+  BarChart,
+  Bar,
+  LineChart,
+  Line
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { 
+  ArrowDownIcon, 
+  ArrowUpIcon, 
+  RefreshCwIcon, 
+  ActivityIcon,
+  WifiIcon
+} from "lucide-react";
 
 interface NetworkTrafficAdvancedProps {
   deviceId: number | null;
@@ -32,142 +43,301 @@ const formatBytes = (bytes: number, decimals = 2) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
-// Định dạng Mbps 
-const formatMbps = (mbps: number) => {
-  return mbps.toFixed(2) + ' Mbps';
+// Định dạng Mbps với độ chính xác cho trước
+const formatMbps = (mbps: number, decimals = 2) => {
+  if (isNaN(mbps)) return '0.00 Mbps';
+  return mbps.toFixed(decimals) + ' Mbps';
+};
+
+// Format thời gian dễ đọc
+const formatTimeAgo = (timestamp: string) => {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSec = Math.round(diffMs / 1000);
+  
+  if (diffSec < 60) return `${diffSec} giây trước`;
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)} phút trước`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)} giờ trước`;
+  return `${Math.floor(diffSec / 86400)} ngày trước`;
 };
 
 const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceId }) => {
   const [activeTab, setActiveTab] = useState<string>("graph");
+  const [selectedTimeFrame, setSelectedTimeFrame] = useState<string>("realtime");
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
   
-  // Fetch metrics data
-  const { data: metrics, isLoading } = useQuery<Metric[]>({ 
+  // Fetch metrics data with periodic refreshing
+  const { data: metrics, isLoading: isLoadingMetrics, refetch: refetchMetrics } = useQuery<Metric[]>({ 
     queryKey: deviceId ? ['/api/devices', deviceId, 'metrics'] : ['empty'],
     enabled: !!deviceId,
-    refetchInterval: 3000, // Refresh every 3 seconds for near real-time updates
+    refetchInterval: autoRefresh ? 3000 : false, // Auto refresh if enabled
   });
-
-  // Format traffic data for the chart
-  const formatTrafficData = () => {
+  
+  // Fetch interfaces data
+  const { data: interfaces, isLoading: isLoadingInterfaces } = useQuery<Interface[]>({
+    queryKey: deviceId ? ['/api/devices', deviceId, 'interfaces'] : ['empty-interfaces'],
+    enabled: !!deviceId,
+    refetchInterval: autoRefresh ? 5000 : false,
+  });
+  
+  // Refresh data manually
+  const handleRefresh = () => {
+    refetchMetrics();
+  };
+  
+  // Format traffic data for the chart with improved calculations
+  const formatTrafficData = useCallback(() => {
     if (!metrics || !Array.isArray(metrics) || metrics.length === 0) {
       return [];
     }
     
-    // Sort metrics by timestamp and take last 50 records
-    const sortedMetrics = [...metrics]
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-      .slice(-50);
-    
-    return sortedMetrics.map(metric => {
-      // Convert bytes to Mb/s for display - ensure we have valid values
-      const download = metric.downloadBandwidth ? (metric.downloadBandwidth / 1024 / 1024 * 8) : 0;
-      const upload = metric.uploadBandwidth ? (metric.uploadBandwidth / 1024 / 1024 * 8) : 0;
-      
-      return {
-        time: new Date(metric.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-        download,
-        upload,
-        // Real traffic data for advanced view
-        traffic: download + upload,
-        downloadRate: download,
-        uploadRate: upload,
-        timestamp: metric.timestamp
-      };
-    });
-  };
-  
-  const trafficData = formatTrafficData();
-
-  // Calculate scale for Y axis
-  const getMaxTraffic = () => {
-    if (!trafficData.length) return 25;
-    
-    const maxValue = Math.max(
-      ...trafficData.map(item => Math.max(item.download, item.upload, item.traffic))
+    // Get data based on selected time frame
+    let timeFrameData = [...metrics].sort(
+      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
     
-    // Round up to nearest 5
-    return Math.ceil(maxValue / 5) * 5;
-  };
+    // Filter based on selected time frame
+    const now = new Date().getTime();
+    const hourMs = 60 * 60 * 1000;
+    const dayMs = 24 * hourMs;
+    
+    switch (selectedTimeFrame) {
+      case "1h":
+        timeFrameData = timeFrameData.filter(m => 
+          now - new Date(m.timestamp).getTime() <= hourMs
+        );
+        break;
+      case "6h":
+        timeFrameData = timeFrameData.filter(m => 
+          now - new Date(m.timestamp).getTime() <= 6 * hourMs
+        );
+        break;
+      case "24h":
+        timeFrameData = timeFrameData.filter(m => 
+          now - new Date(m.timestamp).getTime() <= dayMs
+        );
+        break;
+      case "7d":
+        timeFrameData = timeFrameData.filter(m => 
+          now - new Date(m.timestamp).getTime() <= 7 * dayMs
+        );
+        break;
+      case "realtime":
+      default:
+        // Take the last 50 records for real-time view
+        timeFrameData = timeFrameData.slice(-50);
+    }
+    
+    // Smooth out any missing data points
+    const processedData = timeFrameData.map((metric, index) => {
+      // Convert bytes to Mb/s for display with improved accuracy
+      const downloadMbps = metric.downloadBandwidth 
+        ? (metric.downloadBandwidth / 1024 / 1024 * 8) 
+        : 0;
+      
+      const uploadMbps = metric.uploadBandwidth 
+        ? (metric.uploadBandwidth / 1024 / 1024 * 8) 
+        : 0;
+      
+      // Enhanced metadata for better analytics
+      const timestamp = new Date(metric.timestamp);
+      const hour = timestamp.getHours();
+      const isPeakHour = (hour >= 9 && hour <= 12) || (hour >= 14 && hour <= 18);
+      
+      // Format timestamp differently based on time frame
+      let timeDisplay;
+      if (selectedTimeFrame === "realtime" || selectedTimeFrame === "1h") {
+        timeDisplay = timestamp.toLocaleTimeString([], { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          second: '2-digit' 
+        });
+      } else if (selectedTimeFrame === "6h" || selectedTimeFrame === "24h") {
+        timeDisplay = timestamp.toLocaleTimeString([], { 
+          hour: '2-digit', 
+          minute: '2-digit'
+        });
+      } else {
+        // For 7d, show date and time
+        timeDisplay = timestamp.toLocaleDateString([], {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit'
+        });
+      }
+      
+      return {
+        time: timeDisplay,
+        download: parseFloat(downloadMbps.toFixed(2)),
+        upload: parseFloat(uploadMbps.toFixed(2)),
+        traffic: parseFloat((downloadMbps + uploadMbps).toFixed(2)),
+        downloadRate: downloadMbps,
+        uploadRate: uploadMbps,
+        ratio: uploadMbps > 0 ? downloadMbps / uploadMbps : 0,
+        timestamp: metric.timestamp,
+        isPeakHour,
+        cpuUsage: metric.cpuUsage,
+        memoryUsage: metric.memoryUsage
+      };
+    });
+    
+    return processedData;
+  }, [metrics, selectedTimeFrame]);
+  
+  // Get formatted data 
+  const trafficData = formatTrafficData();
+
+  // Calculate dynamic scale for Y axis with safety checks
+  const getMaxTraffic = useCallback(() => {
+    if (!trafficData || trafficData.length === 0) return 25;
+    
+    try {
+      const maxValue = Math.max(
+        ...trafficData.map(item => {
+          const values = [
+            typeof item.download === 'number' ? item.download : 0,
+            typeof item.upload === 'number' ? item.upload : 0,
+            typeof item.traffic === 'number' ? item.traffic : 0
+          ];
+          return Math.max(...values);
+        })
+      );
+      
+      // Provide some headroom and round up to make scale more readable
+      const headroom = maxValue * 0.2;
+      return Math.ceil((maxValue + headroom) / 5) * 5;
+    } catch (e) {
+      return 25; // Fallback if calculation fails
+    }
+  }, [trafficData]);
   
   const yAxisMax = getMaxTraffic();
   
-  // Generate fixed ticks for Y axis
-  const getYAxisTicks = () => {
-    const baseTicks = [0, 5, 10, 15, 20, 25];
-    if (yAxisMax > 25) {
-      return [...baseTicks, yAxisMax];
+  // Generate dynamic ticks for Y axis based on data range
+  const getYAxisTicks = useCallback(() => {
+    // If max is small, use fine-grained ticks
+    if (yAxisMax <= 10) {
+      return [0, 2, 4, 6, 8, 10];
     }
-    return baseTicks;
-  };
+    
+    // If max is medium, use standard ticks
+    if (yAxisMax <= 25) {
+      return [0, 5, 10, 15, 20, 25];
+    }
+    
+    // If max is larger, generate appropriate scale
+    const tickCount = 5;
+    const tickStep = Math.ceil(yAxisMax / tickCount);
+    
+    const ticks = [];
+    for (let i = 0; i <= tickCount; i++) {
+      ticks.push(i * tickStep);
+    }
+    
+    return ticks;
+  }, [yAxisMax]);
 
-  // Lấy dữ liệu hiện tại để hiển thị trong bảng tóm tắt
-  const getCurrentTrafficStats = () => {
+  // Lấy dữ liệu hiện tại để hiển thị trong bảng tóm tắt với kiểm tra an toàn
+  const getCurrentTrafficStats = useCallback(() => {
     if (!trafficData || trafficData.length === 0) {
       return {
         timestamp: new Date().toISOString(),
         download: 0,
         upload: 0,
         traffic: 0,
+        cpuUsage: 0,
+        memoryUsage: 0,
+        lastUpdate: 'N/A'
       };
     }
 
     // Lấy mục cuối cùng trong dữ liệu
     const latestData = trafficData[trafficData.length - 1];
+    
     return {
       timestamp: latestData.timestamp,
-      download: latestData.download,
-      upload: latestData.upload,
-      traffic: latestData.traffic,
+      download: latestData.download || 0,
+      upload: latestData.upload || 0,
+      traffic: latestData.traffic || 0,
+      cpuUsage: latestData.cpuUsage || 0,
+      memoryUsage: latestData.memoryUsage || 0,
+      lastUpdate: formatTimeAgo(latestData.timestamp)
     };
-  };
+  }, [trafficData]);
 
-  // Tính toán tổng băng thông đã sử dụng (ước tính) dựa trên dữ liệu
-  const calculateTotalBandwidthUsed = () => {
-    if (!trafficData || trafficData.length < 2) return { download: 0, upload: 0, total: 0 };
+  // Tính toán tổng băng thông đã sử dụng với phương pháp cải tiến
+  const calculateTotalBandwidthUsed = useCallback(() => {
+    if (!trafficData || trafficData.length < 2) {
+      return { download: 0, upload: 0, total: 0 };
+    }
     
-    // Tính khoảng thời gian trung bình giữa các điểm (giây)
-    let timeSum = 0;
-    let intervals = 0;
+    // Cải thiện cách tính khoảng thời gian
+    let totalBytes = { download: 0, upload: 0 };
+    let validIntervals = 0;
+    
+    // Tính khoảng thời gian trung bình giữa các mẫu
+    let totalTimeGap = 0;
+    let timeGaps = 0;
     
     for (let i = 1; i < trafficData.length; i++) {
-      if (!trafficData[i-1].timestamp || !trafficData[i].timestamp) continue;
+      const curr = trafficData[i];
+      const prev = trafficData[i-1];
       
-      const prevTime = new Date(trafficData[i-1].timestamp).getTime();
-      const currTime = new Date(trafficData[i].timestamp).getTime();
-      const diffSeconds = (currTime - prevTime) / 1000;
+      if (!curr.timestamp || !prev.timestamp) continue;
       
-      if (diffSeconds > 0 && diffSeconds < 300) { // Loại bỏ các khoảng thời gian bất thường (>5 phút)
-        timeSum += diffSeconds;
-        intervals++;
+      const currTime = new Date(curr.timestamp).getTime();
+      const prevTime = new Date(prev.timestamp).getTime();
+      const timeDiff = (currTime - prevTime) / 1000; // seconds
+      
+      if (timeDiff > 0 && timeDiff < 300) { // Loại bỏ khoảng thời gian bất thường
+        totalTimeGap += timeDiff;
+        timeGaps++;
       }
     }
     
-    const avgInterval = intervals > 0 ? timeSum / intervals : 3; // Mặc định 3 giây nếu không tính được
+    // Tính khoảng thời gian trung bình hoặc dùng giá trị mặc định
+    const avgInterval = timeGaps > 0 ? totalTimeGap / timeGaps : 3; // seconds
     
-    // Tính tổng băng thông đã sử dụng (MB)
-    let totalDownload = 0;
-    let totalUpload = 0;
-    
+    // Tính toán tổng lưu lượng
     for (const data of trafficData) {
       if (typeof data.download === 'number' && typeof data.upload === 'number') {
-        // Chuyển đổi từ Mbps sang MB/s (chia 8), sau đó nhân với khoảng thời gian
-        totalDownload += (data.download / 8) * avgInterval / 1024; // GB
-        totalUpload += (data.upload / 8) * avgInterval / 1024; // GB
+        // Chuyển đổi từ Mbps thành GB
+        // Mbps / 8 = MB/s, * interval = MB, / 1024 = GB
+        totalBytes.download += (data.download / 8) * avgInterval / 1024;
+        totalBytes.upload += (data.upload / 8) * avgInterval / 1024;
+        validIntervals++;
       }
+    }
+    
+    // Hiệu chỉnh dữ liệu nếu có quá ít mẫu
+    if (validIntervals < 5 && interfaces && interfaces.length > 0) {
+      // Ước tính dựa trên dữ liệu giao diện
+      let totalRx = 0;
+      let totalTx = 0;
+      
+      interfaces.forEach(iface => {
+        totalRx += iface.rxBytes || 0;
+        totalTx += iface.txBytes || 0;
+      });
+      
+      // Chuyển đổi bytes thành GB
+      totalBytes.download = Math.max(totalBytes.download, totalRx / (1024 * 1024 * 1024));
+      totalBytes.upload = Math.max(totalBytes.upload, totalTx / (1024 * 1024 * 1024));
     }
     
     return { 
-      download: totalDownload, 
-      upload: totalUpload,
-      total: totalDownload + totalUpload
+      download: totalBytes.download, 
+      upload: totalBytes.upload,
+      total: totalBytes.download + totalBytes.upload
     };
-  };
+  }, [trafficData, interfaces]);
 
+  // Lấy số liệu thống kê hiện tại và tính toán tổng băng thông
   const currentStats = getCurrentTrafficStats();
   const totalBandwidth = calculateTotalBandwidthUsed();
   
-  if (isLoading) {
+  if (isLoadingMetrics) {
     return (
       <div className="bg-gray-900 rounded-lg p-4 shadow-md flex items-center justify-center h-[600px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
