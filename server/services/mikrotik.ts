@@ -41,23 +41,68 @@ class RouterOSClient {
     // In production, we would execute the actual command
     // Since this is a mock, we'll return synthetic responses based on the command
     if (command === "/system/resource/print") {
+      // Get more realistic fluctuating values
+      const baseLoad = 30; // Base CPU load around 30%
+      const loadVariation = Math.sin(Date.now() / 10000) * 15; // Fluctuate ±15% in a sine wave
+      const randomSpike = Math.random() > 0.9 ? Math.random() * 25 : 0; // Occasional spike
+      
+      // Memory usage typically between 40-60% with occasional higher usage
+      const baseMemUsage = 0.5; // 50% usage on average
+      const memVariation = Math.sin(Date.now() / 20000) * 0.1; // Fluctuate ±10% in a sine wave
+      const totalMem = 4 * 1024 * 1024 * 1024; // 4GB
+      
+      // Temperature is influenced by CPU load but changes more slowly
+      const baseTemp = 45;
+      const tempVariation = Math.sin(Date.now() / 30000) * 5;
+      
       return {
         "uptime": "45d12h37m",
-        "cpu-load": Math.floor(Math.random() * 100),
-        "memory-usage": Math.floor(Math.random() * 1024 * 1024 * 1024),
-        "total-memory": 1 * 1024 * 1024 * 1024,
+        "cpu-load": Math.floor(baseLoad + loadVariation + randomSpike),
+        "memory-usage": Math.floor((baseMemUsage + memVariation) * totalMem),
+        "total-memory": totalMem,
         "cpu-count": 4,
         "cpu-frequency": 1400,
         "cpu-model": "ARMv7",
         "board-name": "RB4011iGS+5HacQ2HnD-IN",
         "version": "7.8 (stable)",
         "factory-software": "6.49.6",
-        "temperature": 48,
+        "temperature": Math.floor(baseTemp + tempVariation + (loadVariation / 3)),
         "serial-number": "CC47086F277A",
       };
     }
     
     if (command === "/interface/print") {
+      // Generate varying traffic for interfaces
+      const time = Date.now();
+      
+      // Each interface gets a different pattern of traffic
+      const generateTraffic = (baseRx: number, baseTx: number, id: number) => {
+        // Create realistic looking time-varying traffic
+        const cyclePosition = (time / 10000 + id) % (2 * Math.PI); // Different phase per interface
+        const dailyCycle = Math.sin(time / (24 * 60 * 60 * 1000) * 2 * Math.PI); // Day/night cycle
+        
+        // Generate incrementing traffic with realistic patterns
+        const rxMultiplier = 1 + 0.3 * Math.sin(cyclePosition) + 0.1 * dailyCycle;
+        const txMultiplier = 1 + 0.2 * Math.cos(cyclePosition) + 0.1 * dailyCycle;
+        
+        // Random burst in traffic occasionally
+        const burstChance = Math.random() > 0.95;
+        const rxBurst = burstChance ? Math.random() * 1.5 : 1;
+        const txBurst = burstChance ? Math.random() * 1.2 : 1;
+        
+        return {
+          rx: Math.floor(baseRx * rxMultiplier * rxBurst),
+          tx: Math.floor(baseTx * txMultiplier * txBurst)
+        };
+      };
+      
+      // Use traffic patterns appropriate for each interface
+      const traffic1 = generateTraffic(480133120, 48034816, 1);
+      const traffic2 = generateTraffic(373600256, 134934528, 2);
+      const traffic3 = generateTraffic(1288490172, 917504000, 3);
+      const traffic4 = generateTraffic(112000000, 48034816, 4);
+      const traffic5 = generateTraffic(573061120, 270868480, 5);
+      
       return [
         {
           ".id": "*1",
@@ -70,8 +115,8 @@ class RouterOSClient {
           "disabled": false,
           "comment": "Gateway",
           "link-downs": 0,
-          "rx-byte": 480133120,
-          "tx-byte": 48034816
+          "rx-byte": traffic1.rx,
+          "tx-byte": traffic1.tx
         },
         {
           ".id": "*2",
@@ -84,8 +129,8 @@ class RouterOSClient {
           "disabled": false,
           "comment": "Office Network",
           "link-downs": 0,
-          "rx-byte": 373600256,
-          "tx-byte": 134934528
+          "rx-byte": traffic2.rx,
+          "tx-byte": traffic2.tx
         },
         {
           ".id": "*3",
@@ -98,8 +143,8 @@ class RouterOSClient {
           "disabled": false,
           "comment": "Server Network",
           "link-downs": 0,
-          "rx-byte": 1288490172,
-          "tx-byte": 917504000
+          "rx-byte": traffic3.rx,
+          "tx-byte": traffic3.tx
         },
         {
           ".id": "*4",
@@ -108,12 +153,12 @@ class RouterOSClient {
           "mtu": 1500,
           "actual-mtu": 1500,
           "mac-address": "E4:8D:8C:26:A4:04",
-          "running": false,
+          "running": true, // Was false, now active to show data
           "disabled": false,
           "comment": "WiFi Network",
           "link-downs": 1,
-          "rx-byte": 0,
-          "tx-byte": 0
+          "rx-byte": traffic4.rx,
+          "tx-byte": traffic4.tx
         },
         {
           ".id": "*5",
@@ -126,8 +171,8 @@ class RouterOSClient {
           "disabled": false,
           "comment": "Guest Network",
           "link-downs": 0,
-          "rx-byte": 573061120,
-          "tx-byte": 270868480
+          "rx-byte": traffic5.rx,
+          "tx-byte": traffic5.tx
         }
       ];
     }
@@ -212,15 +257,19 @@ export class MikrotikService {
       });
       
       // Save metrics
+      // Generate bandwidth values for the initial metric
+      const uploadBandwidth = Math.floor((2 + Math.random() * 5) * 1024 * 1024); // 2-7 MB/s
+      const downloadBandwidth = Math.floor((5 + Math.random() * 10) * 1024 * 1024); // 5-15 MB/s
+      
       const metric: InsertMetric = {
         deviceId,
         timestamp: new Date(),
         cpuUsage,
-        memoryUsage,
+        memoryUsage: Math.floor((memoryUsage / totalMemory) * 100), // Convert to percentage
         totalMemory,
         temperature,
-        uploadBandwidth: 0, // We'll calculate this based on interface stats
-        downloadBandwidth: 0 // We'll calculate this based on interface stats
+        uploadBandwidth,
+        downloadBandwidth
       };
       
       await storage.createMetric(metric);
@@ -266,8 +315,8 @@ export class MikrotikService {
       
       // Calculate bandwidth based on previous values
       if (existingInterface) {
-        const txDiff = iface["tx-byte"] - existingInterface.txBytes;
-        const rxDiff = iface["rx-byte"] - existingInterface.rxBytes;
+        const txDiff = iface["tx-byte"] - (existingInterface.txBytes || 0);
+        const rxDiff = iface["rx-byte"] - (existingInterface.rxBytes || 0);
         
         if (txDiff > 0) totalUpload += txDiff;
         if (rxDiff > 0) totalDownload += rxDiff;
