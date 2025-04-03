@@ -164,6 +164,17 @@ module.exports = {
 };
 EOF
   
+  # Kiểm tra và đảm bảo server lắng nghe trên tất cả các giao diện mạng
+  if [ -f "$APP_DIR/server/index.ts" ]; then
+    log "Kiểm tra cấu hình server để lắng nghe trên tất cả các giao diện mạng..."
+    # Server đã lắng nghe trên 0.0.0.0, không cần thay đổi
+    
+    # Thêm một số thiết lập bổ sung cho môi trường production
+    echo "NODE_ENV=production" >> "$APP_DIR/.env"
+    echo "HOST=0.0.0.0" >> "$APP_DIR/.env"
+    echo "PORT=5000" >> "$APP_DIR/.env"
+  fi
+  
   # Tạo file npm start
   cat > start.js << EOF
 const { exec } = require('child_process');
