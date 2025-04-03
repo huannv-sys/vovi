@@ -41,57 +41,27 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
     );
   }
 
-  // Sample interface data for display
-  const sampleInterfaces: InterfaceData[] = [
-    {
-      id: 1,
-      name: 'sfp-sfpplus8',
-      type: 'Physical',
-      status: 'up',
-      macAddress: '48:A9:8A:9A:82:EC',
-      speed: '2.50 Gb/s',
-      rxBytes: 40.5 * 1024 * 1024 * 1024,
-      txBytes: 4.39 * 1024 * 1024 * 1024,
-      comment: 'WAN-VNPT'
-    },
-    {
-      id: 2,
-      name: 'ether1-gateway',
-      type: 'Physical',
-      status: 'up',
-      macAddress: '48:A9:8A:9A:82:ED',
-      speed: '1 Gb/s',
-      rxBytes: 22.3 * 1024 * 1024 * 1024,
-      txBytes: 3.1 * 1024 * 1024 * 1024,
-      comment: 'LAN'
-    },
-    {
-      id: 3,
-      name: 'bridge-local',
-      type: 'Bridge',
-      status: 'up',
-      macAddress: '48:A9:8A:9A:82:EE',
-      speed: '1 Gb/s',
-      rxBytes: 15.7 * 1024 * 1024 * 1024,
-      txBytes: 2.8 * 1024 * 1024 * 1024,
-      comment: 'Management'
+  // Format and prepare interface data
+  const formatInterfaceData = (ifaces: Interface[] | undefined): InterfaceData[] => {
+    if (!ifaces || !Array.isArray(ifaces) || ifaces.length === 0) {
+      return [];
     }
-  ];
+    
+    return ifaces.map(iface => ({
+      id: iface.id,
+      name: iface.name,
+      type: iface.type || 'Physical',
+      status: iface.isUp ? 'up' : 'down',
+      macAddress: iface.macAddress,
+      speed: iface.speed,
+      rxBytes: iface.rxBytes,
+      txBytes: iface.txBytes,
+      comment: null
+    }));
+  };
 
-  // Use real data if available, otherwise use sample data
-  const displayInterfaces = interfaces && Array.isArray(interfaces) && interfaces.length > 0 
-    ? interfaces.map(iface => ({
-        id: iface.id,
-        name: iface.name,
-        type: iface.type || 'Physical',
-        status: iface.isUp ? 'up' : 'down',
-        macAddress: iface.macAddress || '48:A9:8A:9A:82:EC',
-        speed: iface.speed || '1 Gb/s',
-        rxBytes: iface.rxBytes || 10 * 1024 * 1024 * 1024,
-        txBytes: iface.txBytes || 5 * 1024 * 1024 * 1024,
-        comment: 'Router Interface'
-      }))
-    : sampleInterfaces;
+  // Get real interface data
+  const displayInterfaces = formatInterfaceData(interfaces);
 
   // Format bytes to readable format
   const formatBytes = (bytes: number) => {
@@ -139,7 +109,7 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
                   </div>
                 </TableCell>
                 <TableCell className="text-gray-300 text-xs py-2">
-                  {Math.floor(Math.random() * 3)}
+                  0
                 </TableCell>
                 <TableCell className="text-gray-300 text-xs py-2">
                   {iface.macAddress}

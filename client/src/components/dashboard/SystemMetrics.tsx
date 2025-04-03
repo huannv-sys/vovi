@@ -49,22 +49,18 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
       time: new Date(metric.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       cpu: metric.cpuUsage || 0,
       memory: metric.memoryUsage || 0,
-      disk: Math.min(100, ((metric.downloadBandwidth || 0) / 1024 / 1024 * 3.5)) || 0, // Simulated disk usage
+      disk: metric.downloadBandwidth ? Math.min(100, metric.downloadBandwidth / 1024 / 1024) : 0
     }));
   };
 
   const systemUsageData = formatSystemUsageChart();
 
-  // Generate random timestamp in the format HH:MM:SS
-  const getRandomTime = () => {
-    const now = new Date();
-    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-  };
-
-  // Generate random data for the current date
-  const getCurrentDateWithRandomTime = () => {
-    const now = new Date();
-    return `${getRandomTime()}<br/>${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+  // Format date and time
+  const formatDateTime = (date: Date) => {
+    return {
+      time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      date: date.toLocaleDateString('en-GB')
+    };
   };
 
   // Render loading state
@@ -196,7 +192,7 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
           
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Board</span>
-            <span className="text-green-400 font-medium">{(latestMetric as any)?.boardTemp?.toFixed(1) || '7.14.3'}</span>
+            <span className="text-green-400 font-medium">{latestMetric?.boardTemp !== null && latestMetric?.boardTemp !== undefined ? latestMetric.boardTemp.toFixed(1) + '°C' : 'N/A'}</span>
           </div>
 
           <div className="flex items-center justify-between p-2 bg-gray-800 rounded">

@@ -50,22 +50,7 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
   // Format traffic data for the chart
   const formatTrafficData = () => {
     if (!metrics || !Array.isArray(metrics) || metrics.length === 0) {
-      // Generate some default data if no metrics are available
-      const defaultData = [];
-      const now = new Date();
-      for (let i = 0; i < 10; i++) {
-        const time = new Date(now.getTime() - (10-i) * 60000);
-        defaultData.push({
-          time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          download: 5 + Math.random() * 10,
-          upload: 2 + Math.random() * 5,
-          traffic: 8 + Math.random() * 12,
-          downloadRate: 6 + Math.random() * 11,
-          uploadRate: 3 + Math.random() * 6,
-          timestamp: time.toISOString()
-        });
-      }
-      return defaultData;
+      return [];
     }
     
     // Sort metrics by timestamp and take last 50 records
@@ -75,17 +60,17 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
     
     return sortedMetrics.map(metric => {
       // Convert bytes to Mb/s for display - ensure we have valid values
-      const download = metric.downloadBandwidth ? (metric.downloadBandwidth / 1024 / 1024 * 8) : 5 + Math.random() * 10;
-      const upload = metric.uploadBandwidth ? (metric.uploadBandwidth / 1024 / 1024 * 8) : 2 + Math.random() * 5;
+      const download = metric.downloadBandwidth ? (metric.downloadBandwidth / 1024 / 1024 * 8) : 0;
+      const upload = metric.uploadBandwidth ? (metric.uploadBandwidth / 1024 / 1024 * 8) : 0;
       
       return {
         time: new Date(metric.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
         download,
         upload,
-        // Generate enhanced traffic data for advanced view with download and upload components
-        traffic: Math.max(1, (download + upload) * 0.8),
-        downloadRate: Math.max(0.2, download * 1.2),
-        uploadRate: Math.max(0.1, upload * 0.9),
+        // Real traffic data for advanced view
+        traffic: download + upload,
+        downloadRate: download,
+        uploadRate: upload,
         timestamp: metric.timestamp
       };
     });
@@ -412,7 +397,7 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
   return (
     <div className="bg-gray-900 rounded-lg shadow-md">
       <div className="p-3 border-b border-gray-800 flex justify-between items-center">
-        <h3 className="text-sm font-medium text-gray-200">Network Traffic Basic</h3>
+        <h3 className="text-sm font-medium text-gray-200">Network Traffic Advanced</h3>
         <div className="inline-flex h-8 items-center justify-center rounded-md bg-gray-800 p-1 text-gray-400">
           <button
             className={`inline-flex items-center justify-center whitespace-nowrap rounded-sm px-3 h-7 text-xs ${
