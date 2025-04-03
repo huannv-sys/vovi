@@ -36,15 +36,15 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ toggleSidebar }) => {
   };
 
   return (
-    <header className="bg-white border-b border-gray-200">
+    <header className="bg-slate-800 border-b border-slate-700">
       <div className="flex items-center justify-between px-6 py-3">
         <div className="flex items-center">
-          <button onClick={toggleSidebar} className="text-gray-500 focus:outline-none mr-4">
+          <button onClick={toggleSidebar} className="text-slate-300 hover:text-blue-400 focus:outline-none mr-4">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <div className="text-xl font-semibold text-neutral-dark">Dashboard</div>
+          <div className="text-xl font-semibold text-white">Dashboard</div>
         </div>
         
         <div className="flex items-center space-x-4">
@@ -52,23 +52,23 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ toggleSidebar }) => {
             <input 
               type="text" 
               placeholder="Search..." 
-              className="w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-md text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+              className="w-64 pl-10 pr-4 py-2 bg-slate-700 border border-slate-600 rounded-md text-sm text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
-            <div className="absolute left-3 top-2 text-gray-400">
+            <div className="absolute left-3 top-2 text-slate-400">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
           </div>
           
-          <button className="relative p-1 text-gray-500 hover:text-primary focus:outline-none">
+          <button className="relative p-1 text-slate-300 hover:text-blue-400 focus:outline-none">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
             <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500"></span>
           </button>
           
-          <button className="p-1 text-gray-500 hover:text-primary focus:outline-none">
+          <button className="p-1 text-slate-300 hover:text-blue-400 focus:outline-none">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -78,10 +78,10 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ toggleSidebar }) => {
       </div>
       
       {/* Device Selector */}
-      <div className="px-6 py-2 bg-neutral-light flex items-center flex-wrap gap-2">
-        <span className="text-sm text-gray-500">Selected Device:</span>
+      <div className="px-6 py-2 bg-slate-700 border-t border-slate-600 flex items-center flex-wrap gap-2">
+        <span className="text-sm text-slate-300">Selected Device:</span>
         <select 
-          className="p-1.5 text-sm border border-gray-300 rounded-md bg-white focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+          className="p-1.5 text-sm border border-slate-500 rounded-md bg-slate-800 text-white focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           value={selectedDeviceId || ""}
           onChange={(e) => setSelectedDeviceId(parseInt(e.target.value))}
           disabled={isLoading}
@@ -100,15 +100,15 @@ const TopNavbar: React.FC<TopNavbarProps> = ({ toggleSidebar }) => {
         </select>
         {selectedDevice && (
           <div className="flex items-center space-x-1 ml-4">
-            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${selectedDevice.isOnline ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-              <div className={`w-2 h-2 rounded-full mr-1 ${selectedDevice.isOnline ? 'bg-green-500' : 'bg-red-500'}`}></div>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${selectedDevice.isOnline ? 'bg-green-800 text-green-100' : 'bg-red-800 text-red-100'}`}>
+              <div className={`w-2 h-2 rounded-full mr-1 ${selectedDevice.isOnline ? 'bg-green-400' : 'bg-red-400'}`}></div>
               {selectedDevice.isOnline ? 'Online' : 'Offline'}
             </span>
-            <span className="text-xs text-gray-500">Uptime: {selectedDevice.uptime || 'N/A'}</span>
+            <span className="text-xs text-slate-300">Uptime: {selectedDevice.uptime || 'N/A'}</span>
           </div>
         )}
         <button 
-          className="ml-auto text-sm text-primary hover:text-primary-dark focus:outline-none"
+          className="ml-auto text-sm text-blue-400 hover:text-blue-300 focus:outline-none"
           onClick={handleRefreshData}
           disabled={!selectedDeviceId}
         >

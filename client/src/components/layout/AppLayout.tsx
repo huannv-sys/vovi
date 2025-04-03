@@ -14,12 +14,16 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-neutral-light">
-      <Sidebar collapsed={sidebarCollapsed} />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex min-h-screen bg-slate-900 text-white">
+      <div className="fixed h-full z-40">
+        <Sidebar collapsed={sidebarCollapsed} />
+      </div>
+      <div className={`flex-1 flex flex-col ${sidebarCollapsed ? 'md:ml-16' : 'md:ml-64'}`}>
         <TopNavbar toggleSidebar={toggleSidebar} />
-        <main className="flex-1 overflow-y-auto bg-neutral-light p-6">
-          {children}
+        <main className="flex-1 overflow-y-auto bg-slate-900 p-4 md:p-6 w-full">
+          <div className="container mx-auto max-w-7xl">
+            {children}
+          </div>
         </main>
       </div>
     </div>
