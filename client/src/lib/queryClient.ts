@@ -46,8 +46,8 @@ export const queryClient = new QueryClient({
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      refetchOnWindowFocus: true, // Bật lại refetch khi cửa sổ được focus
+      staleTime: 10000, // Dữ liệu cũ sau 10 giây
       retry: false,
     },
     mutations: {

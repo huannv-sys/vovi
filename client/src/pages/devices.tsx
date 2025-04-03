@@ -41,14 +41,19 @@ const DevicesPage = () => {
   // Mutation cho chức năng tìm kiếm thiết bị tự động
   const discoverMutation = useMutation({
     mutationFn: async (subnet: string) => {
-      return await apiRequest('POST', '/api/devices/discover', { subnet });
+      const response = await apiRequest('POST', '/api/devices/discover', { subnet });
+      return await response.json();
     },
-    onSuccess: (response: any) => {
+    onSuccess: async (response: any) => {
       toast({
         title: "Quét mạng hoàn tất",
         description: `Tìm thấy ${response.discoveredCount || 0} thiết bị mới.`,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
+      
+      // Cập nhật cache và tải lại danh sách thiết bị
+      await queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
+      await refetchDevices();
+      
       setIsDiscovering(false);
       setIsDiscoverDialogOpen(false);
     },
@@ -77,8 +82,14 @@ const DevicesPage = () => {
     e.preventDefault();
     
     try {
-      await apiRequest('POST', '/api/devices', formData);
-      queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
+      const response = await apiRequest('POST', '/api/devices', formData);
+      const newDevice = await response.json();
+      console.log("Thiết bị mới được thêm:", newDevice);
+      
+      // Cập nhật cache và tải lại danh sách thiết bị
+      await queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
+      await refetchDevices();
+      
       setIsAddDialogOpen(false);
       setFormData({
         name: "",
@@ -111,7 +122,11 @@ const DevicesPage = () => {
   const handleRefreshDevice = async (deviceId: number) => {
     try {
       await apiRequest('POST', `/api/devices/${deviceId}/refresh`, {});
-      queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
+      
+      // Cập nhật cache và tải lại danh sách thiết bị
+      await queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
+      await refetchDevices();
+      
       toast({
         title: "Đã cập nhật thiết bị",
         description: "Dữ liệu thiết bị đã được cập nhật thành công.",
@@ -134,7 +149,11 @@ const DevicesPage = () => {
     
     try {
       await apiRequest('DELETE', `/api/devices/${deviceId}`, {});
-      queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
+      
+      // Cập nhật cache và tải lại danh sách thiết bị
+      await queryClient.invalidateQueries({ queryKey: ['/api/devices'] });
+      await refetchDevices();
+      
       toast({
         title: "Đã xóa thiết bị",
         description: "Thiết bị đã được xóa thành công.",
