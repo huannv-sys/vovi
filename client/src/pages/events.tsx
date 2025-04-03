@@ -109,15 +109,23 @@ const EventHistoryPage = () => {
     let events = [...sampleEvents];
     
     if (alerts && alerts.length > 0) {
-      const alertEvents = alerts.map(alert => ({
-        id: 1000 + alert.id, // Avoid ID collision with sample data
-        deviceId: alert.deviceId,
-        timestamp: new Date(alert.timestamp),
-        category: eventCategories.SYSTEM,
-        severity: alert.severity,
-        message: alert.message,
-        details: alert.source
-      }));
+      const alertEvents = alerts.map(alert => {
+        // Normalize the severity to match expected values
+        let normalizedSeverity = alertSeverity.INFO; // Default
+        if (alert.severity === alertSeverity.WARNING || alert.severity === alertSeverity.ERROR) {
+          normalizedSeverity = alert.severity;
+        }
+        
+        return {
+          id: 1000 + alert.id, // Avoid ID collision with sample data
+          deviceId: alert.deviceId,
+          timestamp: new Date(alert.timestamp),
+          category: eventCategories.SYSTEM,
+          severity: normalizedSeverity,
+          message: alert.message,
+          details: alert.source || ""
+        };
+      });
       
       events = [...alertEvents, ...events];
     }
