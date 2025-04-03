@@ -89,11 +89,35 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
   // Format traffic data for the chart with improved calculations
   const formatTrafficData = useCallback(() => {
     if (!metrics || !Array.isArray(metrics) || metrics.length === 0) {
+      console.log("Không có dữ liệu metrics hoặc mảng rỗng");
+      return [];
+    }
+
+    console.log("Số lượng metrics:", metrics.length);
+    
+    // Kiểm tra nếu metrics có đúng cấu trúc không
+    const isValidMetric = (metric: any) => {
+      return metric && 
+        typeof metric.timestamp === 'string' && 
+        typeof metric.deviceId === 'number' &&
+        (typeof metric.downloadBandwidth === 'number' || 
+         typeof metric.uploadBandwidth === 'number');
+    };
+    
+    // Lọc và giữ lại các metric hợp lệ
+    let validMetrics = metrics.filter(isValidMetric);
+    
+    if (validMetrics.length === 0) {
+      console.log("Không có metrics hợp lệ sau khi lọc");
+      
+      // Khi không có metrics hợp lệ, dùng trạng thái loading
       return [];
     }
     
+    console.log("Số lượng metrics hợp lệ:", validMetrics.length);
+    
     // Get data based on selected time frame
-    let timeFrameData = [...metrics].sort(
+    let timeFrameData = [...validMetrics].sort(
       (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
     );
     
@@ -125,47 +149,87 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
         break;
       case "realtime":
       default:
-        // Take the last 50 records for real-time view
-        timeFrameData = timeFrameData.slice(-50);
+        // Lấy tất cả bản ghi nếu ít hơn 50, hoặc 50 bản ghi cuối cùng
+        timeFrameData = timeFrameData.length <= 50 ? timeFrameData : timeFrameData.slice(-50);
+    }
+
+    console.log("Số lượng timeFrameData sau khi lọc:", timeFrameData.length);
+    
+    // Thêm log để kiểm tra dữ liệu
+    if (timeFrameData.length > 0) {
+      console.log("Mẫu dữ liệu đầu tiên:", JSON.stringify(timeFrameData[0]));
     }
     
-    // Smooth out any missing data points
+    // Xử lý dữ liệu với kiểm tra an toàn
     const processedData = timeFrameData.map((metric, index) => {
-      // Convert bytes to Mb/s for display with improved accuracy
-      const downloadMbps = metric.downloadBandwidth 
-        ? (metric.downloadBandwidth / 1024 / 1024 * 8) 
+      if (!metric) {
+        console.log("Cảnh báo: metric là undefined", index);
+        return null;
+      }
+      
+      // Kiểm tra và chuẩn hóa giá trị
+      const downloadBandwidth = typeof metric.downloadBandwidth === 'number' ? metric.downloadBandwidth : 0;
+      const uploadBandwidth = typeof metric.uploadBandwidth === 'number' ? metric.uploadBandwidth : 0;
+      
+      // Chuyển đổi bytes thành Mb/s và đảm bảo giá trị không âm
+      let downloadMbps = downloadBandwidth >= 0 
+        ? (downloadBandwidth / 1024 / 1024 * 8) 
         : 0;
       
-      const uploadMbps = metric.uploadBandwidth 
-        ? (metric.uploadBandwidth / 1024 / 1024 * 8) 
+      let uploadMbps = uploadBandwidth >= 0 
+        ? (uploadBandwidth / 1024 / 1024 * 8) 
         : 0;
       
-      // Enhanced metadata for better analytics
-      const timestamp = new Date(metric.timestamp);
+      // Đảm bảo không có giá trị âm
+      downloadMbps = Math.max(0, downloadMbps);
+      uploadMbps = Math.max(0, uploadMbps);
+      
+      // Xử lý timestamp một cách an toàn
+      let timestamp;
+      try {
+        timestamp = new Date(metric.timestamp);
+        if (isNaN(timestamp.getTime())) {
+          console.log("Lỗi timestamp không hợp lệ:", metric.timestamp);
+          timestamp = new Date();
+        }
+      } catch (e) {
+        console.log("Lỗi khi xử lý timestamp:", e);
+        timestamp = new Date();
+      }
+      
       const hour = timestamp.getHours();
       const isPeakHour = (hour >= 9 && hour <= 12) || (hour >= 14 && hour <= 18);
       
-      // Format timestamp differently based on time frame
+      // Format timestamp khác nhau dựa trên khoảng thời gian
       let timeDisplay;
-      if (selectedTimeFrame === "realtime" || selectedTimeFrame === "1h") {
-        timeDisplay = timestamp.toLocaleTimeString([], { 
-          hour: '2-digit', 
-          minute: '2-digit', 
-          second: '2-digit' 
-        });
-      } else if (selectedTimeFrame === "6h" || selectedTimeFrame === "24h") {
-        timeDisplay = timestamp.toLocaleTimeString([], { 
-          hour: '2-digit', 
-          minute: '2-digit'
-        });
-      } else {
-        // For 7d, show date and time
-        timeDisplay = timestamp.toLocaleDateString([], {
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit'
-        });
+      try {
+        if (selectedTimeFrame === "realtime" || selectedTimeFrame === "1h") {
+          timeDisplay = timestamp.toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          });
+        } else if (selectedTimeFrame === "6h" || selectedTimeFrame === "24h") {
+          timeDisplay = timestamp.toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit'
+          });
+        } else {
+          // Cho 7d, hiển thị ngày và giờ
+          timeDisplay = timestamp.toLocaleDateString([], {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit'
+          });
+        }
+      } catch (e) {
+        console.log("Lỗi khi định dạng timeDisplay:", e);
+        timeDisplay = timestamp.toString();
       }
+      
+      // Lấy giá trị CPU và Memory nếu có
+      const cpuUsage = typeof metric.cpuUsage === 'number' ? metric.cpuUsage : 0;
+      const memoryUsage = typeof metric.memoryUsage === 'number' ? metric.memoryUsage : 0;
       
       return {
         time: timeDisplay,
@@ -177,11 +241,12 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
         ratio: uploadMbps > 0 ? downloadMbps / uploadMbps : 0,
         timestamp: metric.timestamp ? metric.timestamp.toString() : new Date().toISOString(),
         isPeakHour,
-        cpuUsage: metric.cpuUsage,
-        memoryUsage: metric.memoryUsage
+        cpuUsage,
+        memoryUsage
       };
-    });
+    }).filter(item => item !== null); // Loại bỏ các mục null
     
+    console.log("Số lượng dữ liệu đã xử lý:", processedData.length);
     return processedData;
   }, [metrics, selectedTimeFrame]);
   
@@ -337,10 +402,26 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
   const currentStats = getCurrentTrafficStats();
   const totalBandwidth = calculateTotalBandwidthUsed();
   
-  if (isLoadingMetrics) {
+  if (isLoadingMetrics || isLoadingInterfaces) {
     return (
       <div className="bg-gray-900 rounded-lg p-4 shadow-md flex items-center justify-center h-[600px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+  
+  // Kiểm tra nếu không có dữ liệu metrics hoặc interfaces
+  if (!metrics || metrics.length === 0 || !interfaces || interfaces.length === 0) {
+    return (
+      <div className="bg-gray-900 rounded-lg p-4 shadow-md flex flex-col items-center justify-center h-[600px]">
+        <p className="text-gray-400 mb-4">Không có dữ liệu từ thiết bị</p>
+        <button 
+          onClick={handleRefresh}
+          className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-md flex items-center"
+        >
+          <RefreshCwIcon className="h-4 w-4 mr-2" />
+          Làm mới dữ liệu
+        </button>
       </div>
     );
   }
