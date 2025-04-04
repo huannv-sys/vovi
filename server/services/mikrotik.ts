@@ -32,6 +32,42 @@ class MikrotikClient {
   setPort(port: number): void {
     this.port = port;
   }
+  
+  // Hàm để xử lý dữ liệu trả về, thay thế undefined/null/NaN với giá trị mặc định
+  private sanitizeObjectValues(obj: any): any {
+    if (!obj || typeof obj !== 'object') {
+      return obj || null;
+    }
+    
+    const result: any = {};
+    
+    for (const [key, value] of Object.entries(obj)) {
+      if (value === undefined || value === null || (typeof value === 'number' && isNaN(value))) {
+        // Áp dụng giá trị mặc định khác nhau tùy thuộc vào loại trường
+        if (key === 'running' || key === 'disabled') {
+          result[key] = key === 'running' ? false : false;
+        } else if (key.includes('byte') || key.includes('bytes')) {
+          result[key] = 0;
+        } else if (key === 'mac-address') {
+          result[key] = '00:00:00:00:00:00';
+        } else if (key === 'mtu') {
+          result[key] = 1500;
+        } else if (key === 'name' || key === 'comment') {
+          result[key] = key === 'name' ? 'unknown' : '';
+        } else if (key === 'type') {
+          result[key] = 'ether';
+        } else {
+          result[key] = null;
+        }
+      } else if (typeof value === 'object') {
+        result[key] = this.sanitizeObjectValues(value);
+      } else {
+        result[key] = value;
+      }
+    }
+    
+    return result;
+  }
 
   async connect(timeout?: number): Promise<boolean> {
     try {
@@ -240,7 +276,13 @@ class MikrotikClient {
             // Sử dụng rosApi trực tiếp từ RouterOSAPI gốc
             const result = await this.client.api().rosApi.write(cmdSegments);
             console.log(`Raw API command executed successfully`);
-            return result;
+            
+            // Xử lý kết quả để loại bỏ undefined/null/NaN
+            const processedResult = Array.isArray(result) 
+              ? result.map(item => this.sanitizeObjectValues(item))
+              : this.sanitizeObjectValues(result);
+              
+            return processedResult;
           } catch (err) {
             console.error(`Raw API command failed:`, err);
             throw err;

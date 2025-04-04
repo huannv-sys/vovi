@@ -132,13 +132,13 @@ const NetworkPage = () => {
                         <TableRow key={iface.id}>
                           <TableCell className="font-medium">{iface.name}</TableCell>
                           <TableCell>
-                            <Badge variant={iface.isUp ? "success" : "destructive"}>
-                              {iface.isUp ? "Up" : "Down"}
+                            <Badge variant={iface.running ? "success" : "destructive"}>
+                              {iface.running ? "Up" : "Down"}
                             </Badge>
                           </TableCell>
-                          <TableCell>{iface.type || "Ethernet"}</TableCell>
+                          <TableCell>{iface.type || "Unknown"}</TableCell>
                           <TableCell>{iface.speed || "Unknown"}</TableCell>
-                          <TableCell>{iface.macAddress || "—"}</TableCell>
+                          <TableCell>{iface.macAddress || "00:00:00:00:00:00"}</TableCell>
                           <TableCell>{formatBytes(iface.txBytes || 0)}</TableCell>
                           <TableCell>{formatBytes(iface.rxBytes || 0)}</TableCell>
                           <TableCell>
