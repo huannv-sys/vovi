@@ -144,8 +144,8 @@ export class MemStorage implements IStorage {
 
     // Add sample device for initial testing
     this.createDevice({
-      name: "MikroTik Router - Office Main",
-      ipAddress: "192.168.1.1",
+      name: "MikroTik Router - Thiết bị thực tế",
+      ipAddress: "118.70.7.134",
       username: "admin",
       password: "password",
       model: "RouterOS CRS309-1G-8S+",

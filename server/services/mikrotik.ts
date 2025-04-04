@@ -570,9 +570,9 @@ export class MikrotikService {
       const forceDemoMode = process.env.FORCE_DEMO_MODE === "true";
       
       // Tự động chuyển sang chế độ demo trong các trường hợp:
-      // 1. Nếu là IP riêng tư và đang trong môi trường Replit (không thể kết nối từ internet)
-      // 2. Nếu cưỡng bức chế độ demo qua biến môi trường
-      if ((isPrivateIP && isReplit) || forceDemoMode) {
+      // 1. Chỉ nếu cưỡng bức chế độ demo qua biến môi trường
+      // Ghi chú: Đã loại bỏ điều kiện về IP riêng tư trong Replit để cho phép kết nối với thiết bị thực
+      if (forceDemoMode) {
         console.log(`⚠️ DEMO MODE - Forced by environment variable - using demo data for device ${deviceId}`);
         
         // Cập nhật thiết bị để hiển thị đúng trong DEMO MODE - không báo là online
