@@ -10,31 +10,32 @@ import type {
 } from "@shared/schema";
 import { storage } from "../storage";
 import { alertSeverity } from "@shared/schema";
-// Sử dụng phương pháp import chuẩn để tránh lỗi với TypeScript
-import RouterOSClient from 'routeros-client';
 
-// RouterOS client for connecting to MikroTik devices
+// Sử dụng thư viện node-routeros để kết nối với RouterOS
+import * as RouterOS from 'node-routeros';
+
+/**
+ * MikroTik Client Class - Quản lý kết nối tới thiết bị MikroTik
+ */
 class MikrotikClient {
   private connected: boolean = false;
   private ipAddress: string;
   private username: string;
   private password: string;
-  private client: any = null;
-  public useMockData: boolean = false; // Không bao giờ sử dụng dữ liệu mẫu, luôn kết nối thiết bị thật
-  private port: number = 8728; // Cổng API mặc định của RouterOS
-  
+  private connection: any = null;
+  private port: number = 8728; // Cổng API mặc định
+
   constructor(ipAddress: string, username: string, password: string) {
     this.ipAddress = ipAddress;
     this.username = username;
     this.password = password;
   }
   
-  // Phương thức để đặt cổng API RouterOS
   setPort(port: number): void {
     this.port = port;
   }
   
-  // Hàm để xử lý dữ liệu trả về, thay thế undefined/null/NaN với giá trị mặc định
+  // Xử lý dữ liệu để tránh undefined/null/NaN
   private sanitizeObjectValues(obj: any): any {
     if (!obj || typeof obj !== 'object') {
       return obj || null;
@@ -44,19 +45,14 @@ class MikrotikClient {
     
     for (const [key, value] of Object.entries(obj)) {
       if (value === undefined || value === null || (typeof value === 'number' && isNaN(value))) {
-        // Áp dụng giá trị mặc định khác nhau tùy thuộc vào loại trường
         if (key === 'running' || key === 'disabled') {
-          result[key] = key === 'running' ? false : false;
-        } else if (key.includes('byte') || key.includes('bytes')) {
+          result[key] = false;
+        } else if (key.includes('byte') || key.includes('packets')) {
           result[key] = 0;
         } else if (key === 'mac-address') {
           result[key] = '00:00:00:00:00:00';
-        } else if (key === 'mtu') {
-          result[key] = 1500;
         } else if (key === 'name' || key === 'comment') {
           result[key] = key === 'name' ? 'unknown' : '';
-        } else if (key === 'type') {
-          result[key] = 'ether';
         } else {
           result[key] = null;
         }
@@ -70,307 +66,94 @@ class MikrotikClient {
     return result;
   }
 
-  async connect(timeout?: number): Promise<boolean> {
+  async connect(timeout = 10000): Promise<boolean> {
     try {
-      console.log(`Connecting to RouterOS device at ${this.ipAddress} with username "${this.username}" on port ${this.port}`);
+      console.log(`Connecting to ${this.ipAddress}:${this.port} as ${this.username}`);
       
-      if (this.useMockData) {
-        // Use mock data for development/testing
-        console.log(`Using demo data for device at ${this.ipAddress}`);
-        // Không đặt trường private directly
-        // Sử dụng một cách để thiết lập trường trong context này
-        Object.defineProperty(this, 'connected', { value: true });
-        return true;
-      }
+      const connectionConfig = {
+        host: this.ipAddress,
+        user: this.username,
+        password: this.password,
+        port: this.port,
+        timeout: timeout
+      };
       
-      // Tăng thời gian chờ kết nối nếu định rõ, nhưng làm giảm xuống để không bị treo quá lâu
-      const connectionTimeout = timeout || 3000; // Giảm timeout mặc định xuống 3 giây
+      console.log(`Connection config: ${JSON.stringify({...connectionConfig, password: '******'})}`);
       
-      // Real connection with RouterOS client
+      // Tạo kết nối mới
+      this.connection = new RouterOS.RouterOSAPI(connectionConfig);
+      
       try {
-        console.log(`Attempting real connection to ${this.ipAddress} on port ${this.port} with timeout of ${connectionTimeout}ms`);
-        
-        // Kiểm tra xem địa chỉ IP có phải là địa chỉ IP tĩnh không
-        // Hầu hết các thiết bị nội bộ sẽ nằm trong các dải sau:
-        // 10.0.0.0 - 10.255.255.255
-        // 172.16.0.0 - 172.31.255.255
-        // 192.168.0.0 - 192.168.255.255
-        const isPrivateIP = 
-          /^10\./.test(this.ipAddress) || 
-          /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(this.ipAddress) || 
-          /^192\.168\./.test(this.ipAddress);
-        
-        if (!isPrivateIP) {
-          console.log(`⚠️ Warning: Attempting to connect to a non-private IP address: ${this.ipAddress}`);
-          console.log(`This may require proper network routing and firewall configuration`);
-        }
-        
-        // Create RouterOS API client with detailed config
-        const config = {
-          host: this.ipAddress,
-          user: this.username,
-          password: this.password,
-          timeout: connectionTimeout,
-          port: this.port,
-          keepalive: false // Đổi thành false để tránh vấn đề connection leak
-        };
-        
-        console.log(`Connection config: ${JSON.stringify({...config, password: '******'})}`);
-        
-        // Tạo đối tượng Promise với timeout
-        const connectionPromise = new Promise<boolean>((resolve, reject) => {
-          try {
-            // Tạo mới client
-            // @ts-ignore: Ignore typechecking for RouterOSClient constructor
-            this.client = new RouterOSClient({
-              host: this.ipAddress,
-              user: this.username,
-              password: this.password,
-              timeout: connectionTimeout,
-              port: this.port,
-              keepalive: false
-            });
-            
-            if (this.client) {
-              console.log(`Calling connect() on RouterOS client...`);
-              this.client.connect()
-                .then(() => {
-                  console.log(`Successfully connected to ${this.ipAddress} on port ${this.port}`);
-                  this.connected = true;
-                  resolve(true);
-                })
-                .catch((err) => {
-                  console.log(`Connection error: ${err.message}`);
-                  reject(err);
-                });
-            } else {
-              reject(new Error("Failed to create RouterOS client"));
-            }
-          } catch (err) {
-            reject(err);
-          }
-        });
-        
-        // Đặt timeout ngắn hơn để đảm bảo không bị treo quá lâu
-        const timeoutPromise = new Promise<boolean>((_, reject) => {
+        // Thiết lập timeout cho kết nối
+        const connectPromise = this.connection.connect();
+        const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => {
-            if (this.client) {
-              try {
-                // Thử đóng client nếu bị timeout để giải phóng tài nguyên
-                this.client.close().catch(e => console.log("Error closing client:", e));
-              } catch (e) {
-                console.log("Error when trying to close client after timeout:", e);
-              }
-              this.client = null;
-            }
-            reject(new Error(`Connection timeout after ${connectionTimeout}ms`));
-          }, connectionTimeout + 1000); // Thêm 1 giây để đảm bảo promise connect có cơ hội hoàn thành
+            reject(new Error(`Connection timed out after ${timeout}ms`));
+          }, timeout);
         });
         
-        // Chạy đua giữa kết nối thành công và timeout
-        const connected = await Promise.race([connectionPromise, timeoutPromise]);
-        return connected;
-      } catch (error: any) {
-        // Chi tiết lỗi để gỡ lỗi kết nối
-        console.error(`Failed to connect to MikroTik device at ${this.ipAddress}:${this.port}:`, error);
+        await Promise.race([connectPromise, timeoutPromise]);
         
-        // Log thông tin lỗi chi tiết hơn
-        if (error.code) {
-          console.error(`Network error code: ${error.code}`);
-          // Xử lý các mã lỗi phổ biến
-          if (error.code === 'ECONNREFUSED') {
-            console.error(`🔴 Connection refused - Port ${this.port} is not open or blocked by firewall`);
-          } else if (error.code === 'ETIMEDOUT') {
-            console.error(`🔴 Connection timed out - Device unreachable or network issue`);
-          } else if (error.code === 'EHOSTUNREACH') {
-            console.error(`🔴 Host unreachable - Check network routing to ${this.ipAddress}`);
-          } else if (error.code === 'ENOTFOUND') {
-            console.error(`🔴 Host not found - DNS resolution failed for ${this.ipAddress}`);
-          }
-        }
-        
-        // Làm sạch tài nguyên và trạng thái
-        if (this.client) {
-          try {
-            await this.client.close();
-          } catch (e) {
-            console.log("Error closing client after connection failure:", e);
-          }
-        }
+        console.log(`Successfully connected to ${this.ipAddress}`);
+        this.connected = true;
+        return true;
+      } catch (error) {
+        console.error(`Failed to connect to ${this.ipAddress}:`, error);
         this.connected = false;
-        this.client = null;
+        this.connection = null;
         return false;
       }
-    } catch (error: any) {
-      console.error(`Error in connect method for ${this.ipAddress}:${this.port}:`, error);
+    } catch (error) {
+      console.error(`Error in connect method for ${this.ipAddress}:`, error);
       this.connected = false;
-      this.client = null;
+      this.connection = null;
       return false;
     }
   }
 
   async disconnect(): Promise<void> {
-    if (!this.useMockData && this.client) {
+    if (this.connection) {
       try {
-        await this.client.close();
+        this.connection.close();
+        console.log(`Disconnected from ${this.ipAddress}`);
       } catch (error) {
-        console.error(`Error closing connection to ${this.ipAddress}:`, error);
+        console.error(`Error disconnecting from ${this.ipAddress}:`, error);
       }
-      this.client = null;
+      this.connection = null;
     }
     this.connected = false;
   }
 
   async executeCommand(command: string, params: any[] = []): Promise<any> {
-    // Chỉ cho phép thực thi lệnh khi đã kết nối thành công
-    if (!this.connected) {
-      throw new Error("Not connected to RouterOS device");
-    }
-    
-    // Mọi thiết bị đều sử dụng kết nối thực (không còn dữ liệu demo)
-    if (!this.client) {
-      throw new Error("RouterOS client not initialized");
+    if (!this.connected || !this.connection) {
+      throw new Error(`Not connected to RouterOS device ${this.ipAddress}`);
     }
     
     try {
       console.log(`Executing command: ${command}`);
       
-      // Xử lý lệnh và tham số để gửi đến RouterOS API
-      // Chuẩn hóa đường dẫn lệnh
-      const commandPath = command.startsWith('/') ? command.substring(1) : command;
-      const pathParts = commandPath.split('/');
+      // Chuẩn bị command và params
+      const fullCommand = command.startsWith('/') ? command : `/${command}`;
       
-      // routeros-client API sử dụng các tham số riêng biệt cho mỗi lệnh
-      let queryParams: any = {};
-      // Nếu có tham số được truyền vào, sử dụng chúng
-      if (params && params.length > 0 && params[0] && typeof params[0] === 'object') {
-        queryParams = params[0];
-      }
-      
-      console.log(`Executing RouterOS command: ${commandPath} with params:`, queryParams);
-      
-      // Thư viện routeros-client sử dụng 'Query' method để tạo và thực thi lệnh
-      // Độc lập với thuộc tính cụ thể của thư viện
-      let result;
-      try {
-        console.log("Using RouterOS Client Query to execute command");
-        
-        // Trong routeros-client, một số cách tiếp cận có thể hoạt động
-        // Lệnh phổ biến là phương thức query
-        const lastPart = pathParts[pathParts.length - 1];
-        
-        // routeros-client phiên bản 1.1.1 có thể có một giao diện khác
-        // Thử sử dụng phương thức query nếu có
-        if (typeof this.client.query === 'function') {
-          console.log("Using client.query() method");
-          
-          // Đường dẫn là tất cả trừ phần cuối cùng nếu đó là 'print'
-          const apiPath = lastPart === 'print' 
-            ? pathParts.slice(0, -1).join('/') 
-            : pathParts.join('/');
-          
-          // Tùy chỉnh chế độ debug và thực hiện lệnh
-          console.log(`Executing query command on path: ${apiPath} with action: ${lastPart}`);
-          
-          // Tạo tham số phù hợp với định dạng query
-          // Với phiên bản 1.1.1, query nhận đường dẫn và tham số
-          if (lastPart === 'print') {
-            result = await this.client.query('/' + apiPath + '/print', queryParams);
-          } else {
-            result = await this.client.query('/' + apiPath, queryParams);
-          }
-        } 
-        // Thử cách thứ hai: sử dụng phương thức write
-        else if (typeof this.client.write === 'function') {
-          console.log("Using client.write() method");
-          
-          const fullPath = commandPath;
-          console.log(`Executing write command for path: ${fullPath}`);
-          
-          result = await this.client.write('/' + fullPath, queryParams);
-        }
-        // Thử cách thứ ba: sử dụng các thuộc tính của client như hàm bậc cao
-        else {
-          // Sử dụng thiết kế API của phiên bản routeros-client 1.1.1
-          // Ví dụ: client.system().resources.print()
-          console.log("Trying API path traversal for:", commandPath);
-          
-          // Phân tích đường dẫn thành các phần
-          let currentObj: any = this.client;
-          
-          // Duyệt qua các phần để lấy đối tượng API cuối cùng
-          for (let i = 0; i < pathParts.length - 1; i++) {
-            const part = pathParts[i];
-            if (typeof currentObj[part] === 'function') {
-              currentObj = currentObj[part]();
-            } else if (currentObj[part]) {
-              currentObj = currentObj[part];
-            } else {
-              throw new Error(`API path part '${part}' not found`);
-            }
-          }
-          
-          // Phần cuối cùng là lệnh, thường là 'print'
-          const command = pathParts[pathParts.length - 1];
-          if (typeof currentObj[command] === 'function') {
-            result = await currentObj[command](queryParams);
-          } else {
-            throw new Error(`Command '${command}' not available`);
-          }
-        }
-        
-        console.log(`Command executed successfully!`);
-      } catch (apiError) {
-        console.error("Error executing RouterOS command:", apiError);
-        
-        // Ghi lại phương thức có sẵn trong client
-        const methods = Object.keys(this.client);
-        console.log("Available client methods:", methods);
-        
-        // Thử phương thức cuối cùng - direct API call theo cách cổ điển
-        // Trong trường hợp cấu trúc thư viện không như dự kiến
-        try {
-          // Thử phương pháp cổ điển nhất cho RouteOS API
-          console.log("Attempting basic RouteROSAPI execution");
-          
-          // Trực tiếp tạo lệnh chuẩn RouterOS API
-          const sentence = ['/' + commandPath];
-          Object.entries(queryParams || {}).forEach(([key, value]) => {
-            sentence.push(`=${key}=${value}`);
-          });
-          
-          console.log("Direct API sentence:", sentence);
-          
-          // Tạo và thực thi lệnh API RouteOS trong định dạng gốc
-          // Đây là cầu cuối cùng - hầu hết các thư viện MikroTik đều hỗ trợ điều này
-          if (typeof this.client.exec === 'function') {
-            result = await this.client.exec(sentence);
-          } else {
-            throw new Error("No suitable API method found in RouterOS client");
-          }
-        } catch (fallbackError) {
-          console.error("All API methods failed:", fallbackError);
-          throw fallbackError;
+      // Chuyển đổi params sang định dạng RouterOS API
+      let apiParams: any = {};
+      if (params && params.length > 0) {
+        if (typeof params[0] === 'object') {
+          apiParams = params[0];
         }
       }
       
-      // Kiểm tra kết quả
-      if (!result) {
-        throw new Error("No data received from RouterOS device");
-      }
+      // Thực thi lệnh
+      const result = await this.connection.write(fullCommand, apiParams);
       
-      console.log(`RouterOS API response:`, JSON.stringify(result).substring(0, 200) + '...');
-      
-      // Xử lý kết quả để loại bỏ giá trị undefined/null/NaN
+      // Xử lý kết quả để tránh undefined/null/NaN
       const processedResult = Array.isArray(result) 
         ? result.map((item: any) => this.sanitizeObjectValues(item))
         : this.sanitizeObjectValues(result);
-        
+      
       return processedResult;
     } catch (error) {
       console.error(`Failed to execute command ${command}:`, error);
-      // Nếu kết nối thất bại, đặt this.connected thành false để thử kết nối lại
-      this.connected = false;
       throw error;
     }
   }
@@ -389,50 +172,41 @@ export class MikrotikService {
     try {
       console.log(`Connecting to device ${deviceId} (${device.ipAddress})...`);
       
-      // Kiểm tra xem có phải là địa chỉ IP riêng tư (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
-      const isPrivateIP = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/i.test(device.ipAddress);
-      // Kiểm tra xem đang chạy trong môi trường Replit 
-      const isReplit = process.env.REPL_ID || process.env.REPL_SLUG;
-      
-      // Tạo một máy khách MikroTik mới
+      // Tạo client mới
       const client = new MikrotikClient(device.ipAddress, device.username, device.password);
       
-      // Thử kết nối với các cổng API của RouterOS khác nhau
-      // Các cổng API thông thường của RouterOS là 8728 (API không mã hóa) và 8729 (API SSL)
+      // Thử các cổng API khác nhau
       const ports = [8728, 8729, 80, 443];
-      let connected = false;
       
-      // Thử kết nối với từng cổng - tăng timeout để có thêm thời gian trên mạng công cộng
       for (const port of ports) {
         try {
-          // Đặt cổng trong máy khách
-          client.setPort(port);
           console.log(`Trying to connect to ${device.ipAddress} on port ${port}... (Wait 10s for timeout)`);
           
-          // Thử kết nối với thời gian chờ dài hơn trên mạng công cộng
-          connected = await client.connect(10000);
+          client.setPort(port);
+          const connected = await client.connect(10000);
           
-          // Nếu kết nối thành công, dừng vòng lặp
           if (connected) {
-            console.log(`Successfully connected to device ${deviceId} on port ${port}`);
+            console.log(`Successfully connected to ${device.ipAddress} on port ${port}`);
             this.clients.set(deviceId, client);
-            await storage.updateDevice(deviceId, { lastSeen: new Date() });
             return true;
           }
         } catch (error) {
-          console.log(`Failed to connect to ${device.ipAddress} on port ${port}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-          // Tiếp tục với cổng tiếp theo
+          console.error(`Failed to connect to ${device.ipAddress} on port ${port}:`, error);
         }
       }
       
-      // Nếu không thể kết nối sau khi thử tất cả các cổng
       console.error(`Failed to connect to device ${deviceId} (${device.ipAddress}) on any port`);
       
-      // Đánh dấu thiết bị là offline
-      await storage.updateDevice(deviceId, { lastSeen: new Date() });
+      await this.createAlert(
+        deviceId,
+        alertSeverity.ERROR,
+        `Failed to connect to device on any port`,
+        null
+      );
+      
       return false;
     } catch (error) {
-      console.error(`Error in connectToDevice for ${deviceId}:`, error);
+      console.error(`Error connecting to device ${deviceId}:`, error);
       return false;
     }
   }
@@ -446,91 +220,141 @@ export class MikrotikService {
   }
   
   async collectDeviceMetrics(deviceId: number): Promise<boolean> {
+    const device = await storage.getDevice(deviceId);
+    if (!device) {
+      console.error(`Device with ID ${deviceId} not found`);
+      return false;
+    }
+    
     try {
+      // Lấy client hoặc tạo kết nối mới
       let client = this.clients.get(deviceId);
+      
       if (!client) {
+        console.log(`No existing connection to device ${deviceId}, attempting to connect...`);
         const connected = await this.connectToDevice(deviceId);
+        
         if (!connected) {
-          // Update device to mark as offline
-          const device = await storage.getDevice(deviceId);
-          if (device) {
-            await this.createAlert(
-              deviceId, 
-              alertSeverity.WARNING,
-              "Device Connection Failure", 
-              `Failed to connect to ${device.name} at ${device.ipAddress}`
-            );
-          }
+          console.error(`Could not connect to device ${deviceId}`);
+          
+          await storage.updateDevice(deviceId, {
+            isOnline: false,
+            lastSeen: new Date()
+          });
+          
           return false;
         }
+        
         client = this.clients.get(deviceId);
-        if (!client) {
-          return false;
-        }
       }
       
-      // Collect system resources
-      const resources = await client.executeCommand("/system/resource/print");
-      console.log(`Resources for device ${deviceId}:`, resources);
-      
-      const cpuUsage = resources["cpu-load"];
-      const memoryUsage = resources["memory-usage"];
-      const totalMemory = resources["total-memory"];
-      const temperature = resources["temperature"];
-      const uptime = resources["uptime"];
-      
-      // Update device information with values from resources
-      await storage.updateDevice(deviceId, { 
-        uptime,
-        lastSeen: new Date(),
-        model: resources["board-name"],
-        routerOsVersion: resources["version"],
-        firmware: resources["factory-software"],
-        cpu: resources["cpu-model"],
-        totalMemory: resources["total-memory"]?.toString() || "Unknown"
-      });
-      
-      // Create a new metric record
-      const metric: InsertMetric = {
-        deviceId,
-        timestamp: new Date(),
-        cpuLoad: cpuUsage,
-        memoryUsed: memoryUsage,
-        uptime,
-        temperature: temperature || 0,
-        // Thêm thông tin cho biểu đồ hiển thị
-        cpuUsage: cpuUsage,
-        memoryUsage: memoryUsage,
-        totalMemory: totalMemory // Giá trị bộ nhớ tổng cộng từ thiết bị thực
-      };
-      
-      await storage.createMetric(metric);
-      console.log(`Stored metrics for device ${deviceId}: CPU ${cpuUsage}%, Memory ${Math.round(memoryUsage/1024/1024)} MB, Temp ${temperature||'N/A'}°C`);
+      if (!client) {
+        console.error(`Could not create client for device ${deviceId}`);
+        return false;
+      }
       
       try {
-        // Collect interface statistics
+        // Thu thập thông tin hệ thống
+        const resourcesData = await client.executeCommand('/system/resource/print');
+        
+        if (!Array.isArray(resourcesData) || resourcesData.length === 0) {
+          throw new Error('Invalid system resource data');
+        }
+        
+        const resources = resourcesData[0];
+        
+        // Thu thập identity
+        const identityData = await client.executeCommand('/system/identity/print');
+        const identity = Array.isArray(identityData) && identityData.length > 0 
+          ? identityData[0].name 
+          : device.name;
+        
+        // Cập nhật thông tin thiết bị
+        await storage.updateDevice(deviceId, {
+          isOnline: true,
+          lastSeen: new Date(),
+          model: resources.board || resources['board-name'] || null,
+          serialNumber: resources['serial-number'] || null,
+          routerOsVersion: resources.version || null,
+          firmware: resources['firmware-type'] || null,
+          cpu: resources['cpu-load'] || 0,
+          totalMemory: resources['total-memory'] || 0,
+          uptime: resources.uptime || '0d 0h 0m'
+        });
+        
+        // Lưu metric mới
+        const metric: InsertMetric = {
+          deviceId,
+          timestamp: new Date(),
+          cpuLoad: parseInt(resources['cpu-load'] || '0', 10),
+          memoryUsage: parseInt(resources['free-memory'] || '0', 10),
+          uptime: resources.uptime || '0d 0h 0m',
+          temperature: parseInt(resources.temperature || '0', 10)
+        };
+        
+        await storage.createMetric(metric);
+        
+        // Thu thập thông tin interfaces
         await this.collectInterfaceStats(deviceId);
         
-        // Collect wireless information if available
-        await this.collectWirelessStats(deviceId);
+        // Thu thập thông tin wireless nếu có
+        try {
+          const wirelessData = await client.executeCommand('/interface/wireless/print');
+          
+          if (Array.isArray(wirelessData) && wirelessData.length > 0) {
+            await storage.updateDevice(deviceId, { hasWireless: true });
+            await this.collectWirelessStats(deviceId);
+          } else {
+            await storage.updateDevice(deviceId, { hasWireless: false });
+          }
+        } catch (error) {
+          console.warn(`Device ${deviceId} does not have wireless interfaces:`, error);
+          await storage.updateDevice(deviceId, { hasWireless: false });
+        }
         
-        // Collect CAPsMAN information if available
-        await this.collectCapsmanStats(deviceId);
+        // Thu thập thông tin CAPsMAN nếu có
+        try {
+          const capsmanData = await client.executeCommand('/caps-man/interface/print');
+          
+          if (Array.isArray(capsmanData) && capsmanData.length > 0) {
+            await storage.updateDevice(deviceId, { hasCAPsMAN: true });
+            await this.collectCapsmanStats(deviceId);
+          } else {
+            await storage.updateDevice(deviceId, { hasCAPsMAN: false });
+          }
+        } catch (error) {
+          console.warn(`Device ${deviceId} does not have CAPsMAN:`, error);
+          await storage.updateDevice(deviceId, { hasCAPsMAN: false });
+        }
         
-        // Collect firewall rules
+        // Thu thập thông tin firewall rules
         await this.collectFirewallRules(deviceId);
         
-        // Collect VPN connections
+        // Thu thập thông tin VPN connections
         await this.collectVpnConnections(deviceId);
-      } catch (statsError) {
-        console.warn(`Warning: Non-critical error collecting additional stats for device ${deviceId}:`, statsError);
-        // Continue despite errors in collecting additional stats
+        
+        return true;
+      } catch (error: any) {
+        console.error(`Error collecting metrics for device ${deviceId}:`, error);
+        
+        await storage.updateDevice(deviceId, {
+          isOnline: false,
+          lastSeen: new Date()
+        });
+        
+        await this.createAlert(
+          deviceId,
+          alertSeverity.ERROR,
+          `Failed to collect metrics: ${error.message}`,
+          null
+        );
+        
+        await this.disconnectFromDevice(deviceId);
+        
+        return false;
       }
-      
-      return true;
-    } catch (err) {
-      const error = err as Error;
-      console.error(`Failed to collect metrics for device ${deviceId}:`, error.message);
+    } catch (error) {
+      console.error(`Unexpected error while collecting metrics for device ${deviceId}:`, error);
       return false;
     }
   }
@@ -538,497 +362,574 @@ export class MikrotikService {
   public async createAlert(
     deviceId: number, 
     severity: AlertSeverity, 
-    title: string, 
-    message: string
-  ): Promise<any> {
-    const alert: InsertAlert = {
-      deviceId,
-      timestamp: new Date(),
-      severity,
-      message,
-      source: title // use title as source since title doesn't exist in schema
-    };
-    
-    return await storage.createAlert(alert);
-  }
-  
-  private async collectInterfaceStats(deviceId: number): Promise<void> {
+    message: string, 
+    resourceId: number | null
+  ): Promise<void> {
     try {
-      const client = this.clients.get(deviceId);
-      if (!client) {
-        throw new Error(`Not connected to device ${deviceId}`);
-      }
-      
-      const interfaces = await client.executeCommand("/interface/print");
-      if (!interfaces || !Array.isArray(interfaces)) {
+      const device = await storage.getDevice(deviceId);
+      if (!device) {
+        console.error(`Cannot create alert: Device with ID ${deviceId} not found`);
         return;
       }
       
-      for (const iface of interfaces) {
-        const existingInterfaces = await storage.getInterfaces(deviceId);
-        const existingInterface = existingInterfaces.find((i) => i.name === iface.name);
-        
-        const newInterface: InsertInterface = {
+      const alert: InsertAlert = {
+        deviceId,
+        timestamp: new Date(),
+        severity,
+        message,
+        acknowledged: false
+      };
+      
+      await storage.createAlert(alert);
+      console.log(`Created new alert for device ${deviceId}: ${message}`);
+    } catch (error) {
+      console.error(`Error creating alert for device ${deviceId}:`, error);
+    }
+  }
+  
+  private async collectInterfaceStats(deviceId: number): Promise<void> {
+    const client = this.clients.get(deviceId);
+    if (!client) {
+      throw new Error(`No connection to device ${deviceId}`);
+    }
+    
+    try {
+      // Lấy danh sách interfaces
+      const interfaceData = await client.executeCommand('/interface/print');
+      
+      if (!Array.isArray(interfaceData)) {
+        throw new Error('Invalid interface data format');
+      }
+      
+      // Tạo cảnh báo nếu không có interfaces
+      if (interfaceData.length === 0) {
+        await this.createAlert(
           deviceId,
-          name: iface.name,
-          type: iface.type,
-          macAddress: iface["mac-address"],
-          mtu: iface.mtu,
-          running: iface.running,
-          disabled: iface.disabled,
-          comment: iface.comment || null,
-          rxBytes: iface["rx-byte"],
-          txBytes: iface["tx-byte"],
-          linkDowns: iface["link-downs"] || 0
-        };
+          alertSeverity.WARNING,
+          'No interfaces found on device',
+          null
+        );
+        return;
+      }
+      
+      // Lấy interfaces hiện có
+      const existingInterfaces = await storage.getInterfaces(deviceId);
+      
+      for (const iface of interfaceData) {
+        // Kiểm tra interface đã tồn tại
+        const existingInterface = existingInterfaces.find(i => i.name === iface.name);
+        
+        // Chuyển đổi các giá trị string booleans sang boolean thực
+        const isRunning = iface.running === 'true' || iface.running === true;
+        const isDisabled = iface.disabled === 'true' || iface.disabled === true;
         
         if (existingInterface) {
-          await storage.updateInterface(existingInterface.id, newInterface);
+          // Cập nhật interface
+          await storage.updateInterface(existingInterface.id, {
+            type: iface.type || 'unknown',
+            macAddress: iface['mac-address'] || '00:00:00:00:00:00',
+            comment: iface.comment || '',
+            disabled: isDisabled,
+            running: isRunning,
+            mtu: parseInt(iface.mtu || '1500', 10),
+            rxBytes: parseInt(iface['rx-byte'] || '0', 10),
+            txBytes: parseInt(iface['tx-byte'] || '0', 10),
+            lastLinkUpTime: iface['last-link-up-time'] || null,
+            linkDowns: parseInt(iface['link-downs'] || '0', 10),
+            txPackets: parseInt(iface['tx-packets'] || '0', 10),
+            rxPackets: parseInt(iface['rx-packets'] || '0', 10),
+            txDrops: parseInt(iface['tx-drops'] || '0', 10),
+            rxDrops: parseInt(iface['rx-drops'] || '0', 10),
+            txErrors: parseInt(iface['tx-errors'] || '0', 10),
+            rxErrors: parseInt(iface['rx-errors'] || '0', 10)
+          });
           
-          // Check if interface status changed
-          if (existingInterface.running !== iface.running) {
-            if (iface.running) {
-              await this.createAlert(
-                deviceId, 
-                alertSeverity.INFO, 
-                "Interface Up", 
-                `Interface ${iface.name} is now up`
-              );
-            } else {
-              await this.createAlert(
-                deviceId, 
-                alertSeverity.WARNING, 
-                "Interface Down", 
-                `Interface ${iface.name} is down`
-              );
-            }
+          // Tạo cảnh báo nếu interface down
+          if (!isRunning && !isDisabled) {
+            await this.createAlert(
+              deviceId,
+              alertSeverity.WARNING,
+              `Interface ${iface.name} is down`,
+              existingInterface.id
+            );
           }
         } else {
-          await storage.createInterface(newInterface);
+          // Tạo interface mới
+          const newInterface: InsertInterface = {
+            deviceId,
+            name: iface.name || 'unknown',
+            type: iface.type || 'unknown',
+            macAddress: iface['mac-address'] || '00:00:00:00:00:00',
+            comment: iface.comment || '',
+            disabled: isDisabled,
+            running: isRunning,
+            mtu: parseInt(iface.mtu || '1500', 10),
+            rxBytes: parseInt(iface['rx-byte'] || '0', 10),
+            txBytes: parseInt(iface['tx-byte'] || '0', 10),
+            lastLinkUpTime: iface['last-link-up-time'] || null,
+            linkDowns: parseInt(iface['link-downs'] || '0', 10),
+            txPackets: parseInt(iface['tx-packets'] || '0', 10),
+            rxPackets: parseInt(iface['rx-packets'] || '0', 10),
+            txDrops: parseInt(iface['tx-drops'] || '0', 10),
+            rxDrops: parseInt(iface['rx-drops'] || '0', 10),
+            txErrors: parseInt(iface['tx-errors'] || '0', 10),
+            rxErrors: parseInt(iface['rx-errors'] || '0', 10)
+          };
+          
+          const createdInterface = await storage.createInterface(newInterface);
+          
+          // Tạo cảnh báo nếu interface down
+          if (!isRunning && !isDisabled) {
+            await this.createAlert(
+              deviceId,
+              alertSeverity.WARNING,
+              `Interface ${iface.name} is down`,
+              createdInterface.id
+            );
+          }
         }
       }
-    } catch (err) {
-      const error = err as Error;
-      console.error(`Failed to collect interface stats for device ${deviceId}:`, error.message);
+    } catch (error) {
+      console.error(`Error collecting interface stats for device ${deviceId}:`, error);
+      throw error;
     }
   }
   
   private async collectWirelessStats(deviceId: number): Promise<void> {
+    const client = this.clients.get(deviceId);
+    if (!client) {
+      throw new Error(`No connection to device ${deviceId}`);
+    }
+    
     try {
-      const client = this.clients.get(deviceId);
-      if (!client) {
-        throw new Error(`Not connected to device ${deviceId}`);
+      // Lấy danh sách wireless interfaces
+      const wirelessData = await client.executeCommand('/interface/wireless/print');
+      
+      if (!Array.isArray(wirelessData)) {
+        throw new Error('Invalid wireless interface data format');
       }
       
-      try {
-        // Get wireless interfaces
-        const wirelessInterfaces = await client.executeCommand("/interface/wireless/print");
-        if (!wirelessInterfaces || !Array.isArray(wirelessInterfaces) || wirelessInterfaces.length === 0) {
-          return; // No wireless on this device
-        }
+      // Đánh dấu các wireless interfaces hiện tại để xóa những interface không còn tồn tại
+      const currentWirelessIds = new Set<number>();
+      const existingWirelessInterfaces = await storage.getWirelessInterfaces(deviceId);
+      
+      for (const wifiIface of wirelessData) {
+        // Tìm wireless interface đã tồn tại trong cơ sở dữ liệu
+        const existingWifi = existingWirelessInterfaces.find(w => w.name === wifiIface.name);
         
-        // Mark device as having wireless capabilities
-        await storage.updateDevice(deviceId, { hasWireless: true });
-        
-        for (const wifiInterface of wirelessInterfaces) {
-          const existingWifi = await storage.getWirelessInterfaces(deviceId);
-          const existingInterface = existingWifi.find((w) => w.name === wifiInterface.name);
+        if (existingWifi) {
+          // Cập nhật wireless interface
+          await storage.updateWirelessInterface(existingWifi.id, {
+            ssid: wifiIface.ssid || '',
+            mode: wifiIface.mode || 'ap-bridge',
+            band: wifiIface.band || '2ghz-b/g/n',
+            channel: wifiIface.channel ? wifiIface.channel.toString() : '',
+            txPower: wifiIface['tx-power'] ? wifiIface['tx-power'].toString() : '',
+            disabled: wifiIface.disabled === 'true' || wifiIface.disabled === true,
+            running: wifiIface.running === 'true' || wifiIface.running === true
+          });
           
+          currentWirelessIds.add(existingWifi.id);
+        } else {
+          // Tạo wireless interface mới
           const newWirelessInterface: InsertWirelessInterface = {
             deviceId,
-            name: wifiInterface.name,
-            macAddress: wifiInterface["mac-address"],
-            ssid: wifiInterface.ssid,
-            band: wifiInterface.band,
-            frequency: parseInt(wifiInterface.frequency) || 0,
-            channelWidth: wifiInterface["channel-width"],
-            mode: wifiInterface.mode,
-            txPower: wifiInterface["tx-power"],
-            noiseFloor: wifiInterface["noise-floor"] || null,
-            running: wifiInterface.running,
-            disabled: wifiInterface.disabled
+            name: wifiIface.name || 'unknown',
+            macAddress: wifiIface['mac-address'] || '00:00:00:00:00:00',
+            ssid: wifiIface.ssid || '',
+            mode: wifiIface.mode || 'ap-bridge',
+            band: wifiIface.band || '2ghz-b/g/n',
+            channel: wifiIface.channel ? wifiIface.channel.toString() : '',
+            txPower: wifiIface['tx-power'] ? wifiIface['tx-power'].toString() : '',
+            disabled: wifiIface.disabled === 'true' || wifiIface.disabled === true,
+            running: wifiIface.running === 'true' || wifiIface.running === true,
+            clients: 0
           };
           
-          if (existingInterface) {
-            await storage.updateWirelessInterface(existingInterface.id, newWirelessInterface);
-            
-            // Check if wireless interface status changed
-            if (existingInterface.running !== wifiInterface.running) {
-              if (wifiInterface.running) {
-                await this.createAlert(
-                  deviceId, 
-                  alertSeverity.INFO, 
-                  "Wireless Interface Up", 
-                  `Wireless interface ${wifiInterface.name} (${wifiInterface.ssid}) is now up`
-                );
-              } else {
-                await this.createAlert(
-                  deviceId, 
-                  alertSeverity.WARNING, 
-                  "Wireless Interface Down", 
-                  `Wireless interface ${wifiInterface.name} (${wifiInterface.ssid}) is down`
-                );
-              }
-            }
-          } else {
-            await storage.createWirelessInterface(newWirelessInterface);
-          }
+          const createdWifi = await storage.createWirelessInterface(newWirelessInterface);
+          currentWirelessIds.add(createdWifi.id);
         }
-        
-        // Get wireless client connections
-        const wirelessClients = await client.executeCommand("/interface/wireless/registration-table/print");
-        if (wirelessClients && Array.isArray(wirelessClients)) {
-          // Process wireless clients here if needed
-          // For now, we're not storing wireless clients in the database
-          // but could be added in the future
-        }
-      } catch (wirelessError) {
-        // Suppress errors for devices without wireless capabilities
-        console.log(`Device ${deviceId} might not have wireless capabilities:`, wirelessError);
       }
-    } catch (err) {
-      const error = err as Error;
-      console.error(`Failed to collect wireless stats for device ${deviceId}:`, error.message);
+      
+      // Xóa wireless interfaces không còn tồn tại
+      for (const wifiIface of existingWirelessInterfaces) {
+        if (!currentWirelessIds.has(wifiIface.id)) {
+          await storage.deleteWirelessInterface(wifiIface.id);
+        }
+      }
+    } catch (error) {
+      console.error(`Error collecting wireless stats for device ${deviceId}:`, error);
+      throw error;
     }
   }
   
   private async collectCapsmanStats(deviceId: number): Promise<void> {
+    const client = this.clients.get(deviceId);
+    if (!client) {
+      throw new Error(`No connection to device ${deviceId}`);
+    }
+    
     try {
-      const client = this.clients.get(deviceId);
-      if (!client) {
-        throw new Error(`Not connected to device ${deviceId}`);
+      // Lấy danh sách CAPsMAN Access Points
+      const capsmanAPData = await client.executeCommand('/caps-man/access-point/print');
+      
+      if (!Array.isArray(capsmanAPData)) {
+        throw new Error('Invalid CAPsMAN AP data format');
       }
       
-      console.log(`Collecting CAPsMAN data for device ${deviceId}...`);
+      // Đánh dấu các CAPsMAN APs hiện tại để xóa những AP không còn tồn tại
+      const currentAPIds = new Set<number>();
+      const existingAPs = await storage.getCapsmanAPs(deviceId);
       
-      try {
-        // Check if device has CAPsMAN interfaces
-        const capsmanInterfaces = await client.executeCommand("/caps-man/interface/print");
+      for (const ap of capsmanAPData) {
+        // Tìm CAPsMAN AP đã tồn tại trong cơ sở dữ liệu
+        const existingAP = existingAPs.find(a => a.name === ap.name || a.macAddress === ap['mac-address']);
         
-        // If we get here without error, the command worked and the device has CAPsMAN
-        const hasCapsmanEnabled = Array.isArray(capsmanInterfaces) && capsmanInterfaces.length > 0;
-        
-        // Update device with CAPsMAN status
-        await storage.updateDevice(deviceId, { hasCAPsMAN: hasCapsmanEnabled });
-        
-        if (!hasCapsmanEnabled) {
-          console.log(`Device ${deviceId} does not have CAPsMAN enabled or has no interfaces`);
-          return;
-        }
-        
-        // Get CAPs (Access Points managed by CAPsMAN)
-        const remoteCaps = await client.executeCommand("/caps-man/remote-cap/print");
-        if (!remoteCaps || !Array.isArray(remoteCaps)) {
-          console.log(`No remote CAPs found for device ${deviceId}`);
-          return;
-        }
-        
-        console.log(`Found ${remoteCaps.length} remote CAPs for device ${deviceId}`);
-        
-        // Store each CAP in the database
-        for (const cap of remoteCaps) {
-          // Find existing CAP by name/identity
-          const existingCaps = await storage.getCapsmanAPs(deviceId);
-          const existingCap = existingCaps.find((c) => c.identity === cap.identity);
+        if (existingAP) {
+          // Cập nhật CAPsMAN AP
+          await storage.updateCapsmanAP(existingAP.id, {
+            name: ap.name || 'unknown',
+            macAddress: ap['mac-address'] || '00:00:00:00:00:00',
+            model: ap.model || '',
+            identity: ap.identity || '',
+            version: ap.version || '',
+            radioMac: ap['radio-mac'] || ap['mac-address'] || '',
+            state: ap.state || 'unknown'
+          });
           
-          // Create new CAP data
+          currentAPIds.add(existingAP.id);
+          
+          // Thu thập clients cho AP này
+          await this.collectCapsmanClients(deviceId, existingAP.id);
+        } else {
+          // Tạo CAPsMAN AP mới
           const newCap: InsertCapsmanAP = {
             deviceId,
-            identity: cap.identity,
-            name: cap.name,
-            address: cap.address,
-            interface: cap.interface,
-            radioMac: cap["radio-mac"],
-            state: cap.state,
-            rxSignal: cap["rx-signal"],
-            connectionCount: 0 // Will update in the next step with client count
+            name: ap.name || 'unknown',
+            macAddress: ap['mac-address'] || '00:00:00:00:00:00',
+            model: ap.model || '',
+            identity: ap.identity || '',
+            serialNumber: ap['serial-number'] || '',
+            version: ap.version || '',
+            radioMac: ap['radio-mac'] || ap['mac-address'] || '',
+            state: ap.state || 'unknown'
           };
           
-          // Store or update CAP
-          let capId: number;
-          if (existingCap) {
-            await storage.updateCapsmanAP(existingCap.id, newCap);
-            capId = existingCap.id;
-          } else {
-            const createdCap = await storage.createCapsmanAP(newCap);
-            capId = createdCap.id;
-          }
+          const createdAP = await storage.createCapsmanAP(newCap);
+          currentAPIds.add(createdAP.id);
           
-          // Now collect registration data for this CAP
-          const registrations = await client.executeCommand("/caps-man/registration-table/print");
-          if (registrations && Array.isArray(registrations)) {
-            // Filter registrations for this CAP
-            const capRegistrations = registrations.filter(reg => reg["radio-mac"] === cap["radio-mac"]);
-            
-            // Update CAP with client count
-            if (capId) {
-              await storage.updateCapsmanAP(capId, { 
-                connectionCount: capRegistrations.length
-              } as Partial<InsertCapsmanAP>);
-            }
-            
-            // Store client information
-            for (const client of capRegistrations) {
-              const clientInfo: InsertCapsmanClient = {
-                apId: capId,
-                deviceId,
-                mac: client.mac,
-                interface: client.interface,
-                uptime: client.uptime,
-                signal: client.signal,
-                rxRate: client["rx-rate"],
-                txRate: client["tx-rate"],
-                rxBytes: client["rx-bytes"],
-                txBytes: client["tx-bytes"]
-              };
-              
-              // Find existing client
-              const existingClients = await storage.getCapsmanClients(capId);
-              const existingClient = existingClients.find(c => c.mac === client.mac);
-              
-              if (existingClient) {
-                await storage.updateCapsmanClient(existingClient.id, clientInfo);
-              } else {
-                await storage.createCapsmanClient(clientInfo);
-              }
-            }
-          }
+          // Thu thập clients cho AP mới
+          await this.collectCapsmanClients(deviceId, createdAP.id);
         }
-      } catch (capsmanError) {
-        // Suppress errors for devices without CAPsMAN
-        console.log(`Device ${deviceId} does not have CAPsMAN:`, capsmanError);
       }
-    } catch (err) {
-      const error = err as Error;
-      console.error(`Failed to collect CAPsMAN stats for device ${deviceId}:`, error.message);
+      
+      // Xóa CAPsMAN APs không còn tồn tại
+      for (const ap of existingAPs) {
+        if (!currentAPIds.has(ap.id)) {
+          await storage.deleteCapsmanAP(ap.id);
+        }
+      }
+    } catch (error) {
+      console.error(`Error collecting CAPsMAN stats for device ${deviceId}:`, error);
+      throw error;
+    }
+  }
+  
+  private async collectCapsmanClients(deviceId: number, apId: number): Promise<void> {
+    const client = this.clients.get(deviceId);
+    if (!client) {
+      throw new Error(`No connection to device ${deviceId}`);
+    }
+    
+    try {
+      const ap = await storage.getCapsmanAP(apId);
+      if (!ap) {
+        throw new Error(`CAPsMAN AP with ID ${apId} not found`);
+      }
+      
+      // Lấy danh sách clients kết nối vào AP này
+      const registrationData = await client.executeCommand('/caps-man/registration-table/print');
+      
+      if (!Array.isArray(registrationData)) {
+        throw new Error('Invalid CAPsMAN client data format');
+      }
+      
+      // Lọc clients cho AP hiện tại
+      const apClients = registrationData.filter(c => 
+        c['radio-mac'] === ap.radioMac || 
+        c['interface'] === ap.name ||
+        c['ap-mac'] === ap.macAddress
+      );
+      
+      // Đánh dấu các clients hiện tại để xóa những client không còn tồn tại
+      const currentClientIds = new Set<number>();
+      const existingClients = await storage.getCapsmanClients(apId);
+      
+      for (const clientData of apClients) {
+        const macAddress = clientData['mac-address'] || '';
+        
+        // Tìm client đã tồn tại trong cơ sở dữ liệu
+        const existingClient = existingClients.find(c => c.macAddress === macAddress);
+        
+        if (existingClient) {
+          // Cập nhật client
+          await storage.updateCapsmanClient(existingClient.id, {
+            ipAddress: clientData.ip || '',
+            username: clientData.user || '',
+            signalStrength: parseInt(clientData.signal || '0', 10),
+            interface: clientData.interface || '',
+            hostname: clientData['host-name'] || '',
+            txRate: clientData['tx-rate'] || '',
+            rxRate: clientData['rx-rate'] || '',
+            connectedTime: clientData.uptime || ''
+          });
+          
+          currentClientIds.add(existingClient.id);
+        } else {
+          // Tạo client mới
+          const newClient: InsertCapsmanClient = {
+            deviceId,
+            apId,
+            macAddress,
+            ipAddress: clientData.ip || '',
+            username: clientData.user || '',
+            signalStrength: parseInt(clientData.signal || '0', 10),
+            interface: clientData.interface || '',
+            hostname: clientData['host-name'] || '',
+            txRate: clientData['tx-rate'] || '',
+            rxRate: clientData['rx-rate'] || '',
+            connectedTime: clientData.uptime || ''
+          };
+          
+          const createdClient = await storage.createCapsmanClient(newClient);
+          currentClientIds.add(createdClient.id);
+        }
+      }
+      
+      // Xóa clients không còn tồn tại
+      for (const existingClient of existingClients) {
+        if (!currentClientIds.has(existingClient.id)) {
+          await storage.deleteCapsmanClient(existingClient.id);
+        }
+      }
+    } catch (error) {
+      console.error(`Error collecting CAPsMAN clients for device ${deviceId} and AP ${apId}:`, error);
+      throw error;
     }
   }
   
   private async collectFirewallRules(deviceId: number): Promise<void> {
+    const client = this.clients.get(deviceId);
+    if (!client) {
+      throw new Error(`No connection to device ${deviceId}`);
+    }
+    
     try {
-      const client = this.clients.get(deviceId);
-      if (!client) {
-        throw new Error(`Not connected to device ${deviceId}`);
+      // Thu thập luật tường lửa từ filter 
+      const filterRules = await client.executeCommand('/ip/firewall/filter/print');
+      
+      if (Array.isArray(filterRules)) {
+        // Đếm số lượng luật đang kích hoạt và bị vô hiệu hóa
+        let activeRules = 0;
+        let disabledRules = 0;
+        
+        for (const rule of filterRules) {
+          if (rule.disabled === 'true' || rule.disabled === true) {
+            disabledRules++;
+          } else {
+            activeRules++;
+          }
+        }
+        
+        console.log(`Device ${deviceId} has ${activeRules} active and ${disabledRules} disabled firewall filter rules`);
       }
       
-      // Get firewall filter rules 
-      const firewallRules = await client.executeCommand("/ip/firewall/filter/print");
-      if (!firewallRules || !Array.isArray(firewallRules)) {
-        console.log(`No firewall rules found for device ${deviceId}`);
-        return;
+      // Thu thập luật tường lửa từ nat
+      const natRules = await client.executeCommand('/ip/firewall/nat/print');
+      
+      if (Array.isArray(natRules)) {
+        // Đếm số lượng luật NAT đang kích hoạt và bị vô hiệu hóa
+        let activeNatRules = 0;
+        let disabledNatRules = 0;
+        
+        for (const rule of natRules) {
+          if (rule.disabled === 'true' || rule.disabled === true) {
+            disabledNatRules++;
+          } else {
+            activeNatRules++;
+          }
+        }
+        
+        console.log(`Device ${deviceId} has ${activeNatRules} active and ${disabledNatRules} disabled firewall NAT rules`);
       }
       
-      console.log(`Found ${firewallRules.length} firewall rules for device ${deviceId}`);
-      
-      // TODO: Store firewall rules in database if needed
-      // Currently we just return them in the API response
-    } catch (err) {
-      const error = err as Error;
-      console.error(`Failed to collect firewall rules for device ${deviceId}:`, error.message);
+    } catch (error) {
+      console.error(`Error collecting firewall rules for device ${deviceId}:`, error);
+      // Không ném lỗi, tiếp tục thu thập dữ liệu khác
     }
   }
   
   private async collectVpnConnections(deviceId: number): Promise<void> {
+    const client = this.clients.get(deviceId);
+    if (!client) {
+      throw new Error(`No connection to device ${deviceId}`);
+    }
+    
     try {
-      const client = this.clients.get(deviceId);
-      if (!client) {
-        throw new Error(`Not connected to device ${deviceId}`);
-      }
-      
-      // Get different types of VPN connections
-      
-      // 1. PPTP connections
+      // Thu thập thông tin VPN PPTP
       try {
-        const pptpConnections = await client.executeCommand("/interface/pptp-server/print");
-        if (pptpConnections && Array.isArray(pptpConnections)) {
-          console.log(`Found ${pptpConnections.length} PPTP connections for device ${deviceId}`);
+        const pptpConns = await client.executeCommand('/interface/pptp-server/print');
+        if (Array.isArray(pptpConns)) {
+          console.log(`Device ${deviceId} has ${pptpConns.length} PPTP server connections`);
         }
-      } catch (e) {
-        console.log(`Failed to get PPTP connections for device ${deviceId}`);
+      } catch (error) {
+        console.warn(`Error collecting PPTP server connections for device ${deviceId}:`, error);
       }
       
-      // 2. L2TP connections
+      // Thu thập thông tin VPN L2TP
       try {
-        const l2tpConnections = await client.executeCommand("/interface/l2tp-server/print");
-        if (l2tpConnections && Array.isArray(l2tpConnections)) {
-          console.log(`Found ${l2tpConnections.length} L2TP connections for device ${deviceId}`);
+        const l2tpConns = await client.executeCommand('/interface/l2tp-server/print');
+        if (Array.isArray(l2tpConns)) {
+          console.log(`Device ${deviceId} has ${l2tpConns.length} L2TP server connections`);
         }
-      } catch (e) {
-        console.log(`Failed to get L2TP connections for device ${deviceId}`);
+      } catch (error) {
+        console.warn(`Error collecting L2TP server connections for device ${deviceId}:`, error);
       }
       
-      // 3. SSTP connections
+      // Thu thập thông tin VPN SSTP
       try {
-        const sstpConnections = await client.executeCommand("/interface/sstp-server/print");
-        if (sstpConnections && Array.isArray(sstpConnections)) {
-          console.log(`Found ${sstpConnections.length} SSTP connections for device ${deviceId}`);
+        const sstpConns = await client.executeCommand('/interface/sstp-server/print');
+        if (Array.isArray(sstpConns)) {
+          console.log(`Device ${deviceId} has ${sstpConns.length} SSTP server connections`);
         }
-      } catch (e) {
-        console.log(`Failed to get SSTP connections for device ${deviceId}`);
+      } catch (error) {
+        console.warn(`Error collecting SSTP server connections for device ${deviceId}:`, error);
       }
       
-      // 4. OpenVPN connections 
+      // Thu thập thông tin VPN OpenVPN
       try {
-        const ovpnConnections = await client.executeCommand("/interface/ovpn-server/print");
-        if (ovpnConnections && Array.isArray(ovpnConnections)) {
-          console.log(`Found ${ovpnConnections.length} OpenVPN connections for device ${deviceId}`);
+        const ovpnConns = await client.executeCommand('/interface/ovpn-server/print');
+        if (Array.isArray(ovpnConns)) {
+          console.log(`Device ${deviceId} has ${ovpnConns.length} OpenVPN server connections`);
         }
-      } catch (e) {
-        console.log(`Failed to get OpenVPN connections for device ${deviceId}`);
+      } catch (error) {
+        console.warn(`Error collecting OpenVPN server connections for device ${deviceId}:`, error);
       }
       
-      // TODO: Store VPN connection data in database if needed
-    } catch (err) {
-      const error = err as Error;
-      console.error(`Failed to collect VPN connections for device ${deviceId}:`, error.message);
+    } catch (error) {
+      console.error(`Error collecting VPN connections for device ${deviceId}:`, error);
+      // Không ném lỗi, tiếp tục thu thập dữ liệu khác
     }
   }
   
+  // Phương thức để phát hiện thiết bị MikroTik trên mạng
   public async discoverDevices(subnet: string): Promise<number> {
-    if (!subnet.match(/^(\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/)) {
-      throw new Error("Invalid subnet format. Expected format: 192.168.1.0/24");
-    }
+    console.log(`Starting device discovery on subnet ${subnet}...`);
     
-    console.log(`Starting device discovery in subnet ${subnet}...`);
-    
-    // Extract network details
-    const [networkAddress, cidrStr] = subnet.split('/');
-    const cidr = parseInt(cidrStr);
-    
-    if (cidr < 16 || cidr > 30) {
-      throw new Error("CIDR must be between 16 and 30 to avoid scanning too large a network");
-    }
-    
-    // Calculate number of hosts to scan
-    const numHosts = Math.pow(2, 32 - cidr) - 2; // -2 for network and broadcast addresses
-    console.log(`Will scan ${numHosts} IP addresses in subnet ${subnet}`);
-    
-    if (numHosts > 1024) {
-      throw new Error("Network is too large to scan. Choose a smaller subnet (smaller CIDR)");
-    }
-    
-    // Parse network address
-    const ipParts = networkAddress.split('.').map(part => parseInt(part));
-    
-    // Generate all IP addresses in the subnet
-    const ipAddresses: string[] = [];
-    const baseIp = (ipParts[0] << 24) | (ipParts[1] << 16) | (ipParts[2] << 8) | ipParts[3];
-    const mask = 0xffffffff << (32 - cidr);
-    const start = (baseIp & mask) + 1; // Skip network address
-    const end = (baseIp | (~mask & 0xffffffff)) - 1; // Skip broadcast address
-    
-    for (let i = start; i <= end; i++) {
-      const ip = [
-        (i >> 24) & 0xff,
-        (i >> 16) & 0xff,
-        (i >> 8) & 0xff,
-        i & 0xff
-      ].join('.');
-      ipAddresses.push(ip);
-    }
-    
-    console.log(`Generated ${ipAddresses.length} IP addresses to scan`);
-    
-    // Define connection details
-    const username = "admin"; // Default RouterOS username
-    const passwords = ["", "admin", "password"]; // Common default passwords
-    
-    // Track discovered devices
-    let discoveredCount = 0;
-    
-    // Scan each IP address
-    const chunkSize = 16; // Scan 16 IPs concurrently
-    for (let i = 0; i < ipAddresses.length; i += chunkSize) {
-      const chunk = ipAddresses.slice(i, i + chunkSize);
-      console.log(`Scanning IPs ${i+1}-${i+chunk.length} of ${ipAddresses.length}`);
+    try {
+      // Phân tích subnet
+      const baseIp = subnet.split('/')[0];
+      const parts = baseIp.split('.');
+      const networkPrefix = `${parts[0]}.${parts[1]}.${parts[2]}`;
       
-      // Create connection promises for all IPs in the chunk
-      const promises = chunk.map(ip => this.checkIfMikrotik(ip, username, passwords));
+      // Số lượng thiết bị được tìm thấy
+      let devicesFound = 0;
       
-      // Wait for all connections in this chunk to complete
-      const results = await Promise.all(promises);
-      
-      // Process successful connections
-      for (const result of results) {
-        if (result && result.success) {
-          try {
-            // Check if device already exists by IP address
-            const existingDevice = await storage.getDeviceByIp(result.ipAddress);
+      // Quét subnet
+      for (let i = 1; i < 255; i++) {
+        const ipToCheck = `${networkPrefix}.${i}`;
+        
+        // Kiểm tra xem thiết bị đã tồn tại trong CSDL chưa
+        const existingDevice = await storage.getDeviceByIp(ipToCheck);
+        if (existingDevice) {
+          console.log(`Device at ${ipToCheck} already exists in database, skipping...`);
+          continue;
+        }
+        
+        try {
+          // Kiểm tra xem IP này có phải là thiết bị MikroTik không
+          const isMikrotik = await this.checkIfMikrotik(ipToCheck, 'admin', 'admin');
+          
+          if (isMikrotik) {
+            console.log(`Found MikroTik device at ${ipToCheck}`);
             
-            if (existingDevice) {
-              console.log(`Device at ${result.ipAddress} already exists in database`);
-              continue;
-            }
-            
-            // Create new device
+            // Tạo thiết bị mới trong CSDL với thông tin cơ bản
             const newDevice: InsertDevice = {
-              name: result.identity || `MikroTik ${result.ipAddress}`,
-              ipAddress: result.ipAddress,
-              username: result.username,
-              password: result.password
+              name: `MikroTik-${ipToCheck}`,
+              ipAddress: ipToCheck,
+              username: 'admin', // Tên người dùng mặc định
+              password: 'password', // Mật khẩu mặc định, nên thay đổi
+              isOnline: false,
+              lastSeen: new Date(),
+              uptime: '0d 0h 0m',
+              model: null,
+              serialNumber: null,
+              routerOsVersion: null,
+              firmware: null,
+              cpu: null,
+              totalMemory: null,
+              storage: null,
+              hasCAPsMAN: false,
+              hasWireless: false
             };
             
-            // Add device to database
-            const device = await storage.createDevice(newDevice);
-            console.log(`Added new device: ${device.name} (${device.ipAddress})`);
-            discoveredCount++;
-          } catch (error) {
-            console.error(`Error adding discovered device ${result.ipAddress}:`, error);
+            await storage.createDevice(newDevice);
+            devicesFound++;
           }
+        } catch (error) {
+          // Bỏ qua lỗi và tiếp tục quét
+          continue;
         }
       }
+      
+      return devicesFound;
+    } catch (error) {
+      console.error(`Error discovering devices:`, error);
+      return 0;
     }
-    
-    console.log(`Discovery complete. Found ${discoveredCount} new MikroTik devices.`);
-    return discoveredCount;
   }
   
   private async checkIfMikrotik(
     ipAddress: string, 
     username: string, 
-    passwordList: string[]
-  ): Promise<any> {
-    console.log(`Checking if ${ipAddress} is a MikroTik device...`);
+    password: string
+  ): Promise<boolean> {
+    const testClient = new MikrotikClient(ipAddress, username, password);
     
-    // Try each password
-    for (const password of passwordList) {
-      const client = new MikrotikClient(ipAddress, username, password);
+    // Thử kết nối với các cổng API của MikroTik
+    const ports = [8728, 8729, 80, 443];
+    
+    for (const port of ports) {
+      testClient.setPort(port);
       
       try {
-        // Set short timeout to quickly move to next device if no response
-        const connected = await client.connect(1500);
+        // Sử dụng timeout ngắn để tăng tốc độ quét
+        const connected = await testClient.connect(5000);
         
         if (connected) {
-          console.log(`Successfully connected to ${ipAddress} with username "${username}" and password "${password}"`);
-          
-          // Try to get device identity to confirm it's a MikroTik device
+          // Thử thực hiện một lệnh đơn giản để xác nhận đây là thiết bị MikroTik
           try {
-            const systemIdentity = await client.executeCommand("/system/identity/print");
-            const identity = systemIdentity.name || "Unknown MikroTik";
-            
-            // Close connection
-            await client.disconnect();
-            
-            return {
-              success: true,
-              ipAddress,
-              username,
-              password,
-              identity
-            };
-          } catch (identityError) {
-            console.error(`Error getting identity from ${ipAddress}:`, identityError);
-            await client.disconnect();
+            const result = await testClient.executeCommand('/system/resource/print');
+            if (Array.isArray(result) && result.length > 0) {
+              // Đây là thiết bị MikroTik
+              await testClient.disconnect();
+              return true;
+            }
+          } catch (cmdError) {
+            // Không phải thiết bị MikroTik
+            await testClient.disconnect();
+            return false;
           }
         }
       } catch (error) {
-        // Couldn't connect with this password, try next one
-        console.log(`Failed to connect to ${ipAddress} with password "${password}"`);
+        // Bỏ qua lỗi và tiếp tục với cổng khác
+        continue;
       }
     }
     
-    return { success: false, ipAddress };
+    return false;
   }
 }
 
+// Xuất một thể hiện duy nhất của dịch vụ MikroTik
 export const mikrotikService = new MikrotikService();
