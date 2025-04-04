@@ -212,37 +212,46 @@ class MikrotikClient {
         
         console.log(`Executing command ${commandParts.join('/')} with params:`, apiParams);
         
-        // Create a menu path based on command parts (except the last one which is the action)
-        const api = this.client.api();
-        const action = commandParts.pop(); // Get the last part (action) from the command
-        const model = new rosjs.RosApiModel(api);
-        
-        // Navigate to the correct API path/menu
-        let menu = model.menu();
-        for (const part of commandParts) {
-          menu = menu.menu(part);
+        try {
+          // Sử dụng API cấp thấp của RouterOS API thay vì mô hình hóa
+          let commandStr = '';
+          
+          // Xây dựng chuỗi lệnh đúng định dạng RouterOS API
+          if (command.startsWith('/')) {
+            commandStr = command;
+          } else {
+            commandStr = '/' + commandParts.join('/');
+          }
+          
+          console.log(`Executing low-level API command: ${commandStr}`);
+          
+          // Sử dụng phương pháp gọi trực tiếp qua API RAW thấp hơn
+          try {
+            // Phân tích lệnh thành các phần tách biệt
+            // Ví dụ: /system/resource/print => ['/system/resource/print']
+            const cmdSegments = [];
+            
+            // Chỉ xử lý lệnh print đơn giản
+            if (command.endsWith('/print')) {
+              cmdSegments.push(command);
+            } else {
+              throw new Error(`Only /print commands are supported`);
+            }
+            
+            console.log(`Executing raw API command: ${cmdSegments.join(' ')}`);
+            
+            // Sử dụng rosApi trực tiếp từ RouterOSAPI gốc
+            const result = await this.client.api().rosApi.write(cmdSegments);
+            console.log(`Raw API command executed successfully`);
+            return result;
+          } catch (err) {
+            console.error(`Raw API command failed:`, err);
+            throw err;
+          }
+        } catch (apiError) {
+          console.error(`API execution error:`, apiError);
+          throw apiError;
         }
-        
-        // Execute the corresponding action (print, add, remove, etc.)
-        let result;
-        if (action === 'print') {
-          // Handle print action
-          result = await menu.print(apiParams);
-        } else if (action === 'add') {
-          // Handle add action
-          result = await menu.add(apiParams);
-        } else if (action === 'remove') {
-          // Handle remove action
-          result = await menu.remove(apiParams);
-        } else if (action === 'set') {
-          // Handle set action
-          result = await menu.set(apiParams);
-        } else {
-          throw new Error(`Unsupported action: ${action}`);
-        }
-        
-        console.log(`Got result from real device for ${command}:`, result);
-        return result;
       } catch (error) {
         console.error(`Failed to execute command ${command}:`, error);
         // Nếu kết nối thất bại, đặt this.connected thành false để thử kết nối lại
@@ -728,7 +737,11 @@ export class MikrotikService {
         cpuLoad: cpuUsage,
         memoryUsed: memoryUsage,
         uptime,
-        temperature: temperature || 0
+        temperature: temperature || 0,
+        // Thêm thông tin cho biểu đồ hiển thị
+        cpuUsage: cpuUsage,
+        memoryUsage: memoryUsage,
+        totalMemory: totalMemory // Giá trị bộ nhớ tổng cộng từ thiết bị thực
       };
       
       await storage.createMetric(metric);

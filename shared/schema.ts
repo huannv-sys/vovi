@@ -126,9 +126,14 @@ export const interfaces = pgTable("interfaces", {
   type: text("type"),
   speed: text("speed"),
   isUp: boolean("is_up").default(false),
+  running: boolean("running").default(false),
+  disabled: boolean("disabled").default(false),
   macAddress: text("mac_address"),
+  mtu: integer("mtu"),
+  comment: text("comment"),
   txBytes: real("tx_bytes").default(0),
   rxBytes: real("rx_bytes").default(0),
+  linkDowns: integer("link_downs").default(0),
   lastUpdated: timestamp("last_updated").defaultNow(),
 });
 
@@ -170,10 +175,13 @@ export const wirelessInterfaces = pgTable("wireless_interfaces", {
   band: text("band"), // 2ghz-b/g/n, 5ghz-a/n/ac
   channel: text("channel"),
   frequency: integer("frequency"),
+  channelWidth: text("channel_width"),
   noiseFloor: integer("noise_floor"),
   txPower: real("tx_power"),
   signalStrength: real("signal_strength"),
   mode: text("mode"), // ap, station, bridge
+  running: boolean("running").default(false),
+  disabled: boolean("disabled").default(false),
   clients: integer("clients").default(0),
   isActive: boolean("is_active").default(true),
   lastUpdated: timestamp("last_updated").defaultNow(),

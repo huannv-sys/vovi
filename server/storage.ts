@@ -144,22 +144,43 @@ export class MemStorage implements IStorage {
 
     // Add sample device for initial testing
     this.createDevice({
-      name: "MikroTik Router - Thiết bị thực tế",
-      ipAddress: "118.70.7.134",
+      name: "MikroTik Router - IP Ban đầu",
+      ipAddress: "118.70.7.134", 
       username: "admin",
       password: "password",
-      model: "RouterOS CRS309-1G-8S+",
-      serialNumber: "AC43086D277B",
-      routerOsVersion: "7.8 (stable)",
-      firmware: "7.16.2",
-      cpu: "Dual-Core 88F6820",
-      totalMemory: "1024 MB",
-      storage: "16 MB Flash",
+      model: "RouterOS",
+      serialNumber: null,
+      routerOsVersion: null,
+      firmware: null,
+      cpu: null,
+      totalMemory: null,
+      storage: null,
     }).then(device => {
-      // Kích hoạt CAPsMAN và Wireless cho thiết bị ban đầu
       this.updateDevice(device.id, {
-        hasCAPsMAN: true,
-        hasWireless: true
+        hasCAPsMAN: false,
+        hasWireless: false,
+        isOnline: false
+      });
+    });
+    
+    // Thêm thiết bị thứ hai - thiết bị thực tế đã cung cấp
+    this.createDevice({
+      name: "MikroTik Router - Thiết bị thực tế",
+      ipAddress: "1.54.179.248",
+      username: "admin",
+      password: "Ictech1234%^",
+      model: "RouterOS",
+      serialNumber: null,
+      routerOsVersion: null,
+      firmware: null,
+      cpu: null,
+      totalMemory: null,
+      storage: null,
+    }).then(device => {
+      this.updateDevice(device.id, {
+        hasCAPsMAN: false,
+        hasWireless: false,
+        isOnline: false
       });
     });
   }
@@ -273,9 +294,14 @@ export class MemStorage implements IStorage {
       type: insertInterface.type || null,
       speed: insertInterface.speed || null,
       isUp: insertInterface.isUp || null,
+      running: insertInterface.running || null,
+      disabled: insertInterface.disabled || null,
+      mtu: insertInterface.mtu || null,
+      comment: insertInterface.comment || null,
       macAddress: insertInterface.macAddress || null,
       txBytes: insertInterface.txBytes || null,
       rxBytes: insertInterface.rxBytes || null,
+      linkDowns: insertInterface.linkDowns || null,
       lastUpdated: insertInterface.lastUpdated || new Date()
     };
     this.interfaces.set(id, iface);
@@ -373,10 +399,13 @@ export class MemStorage implements IStorage {
       band: insertWirelessInterface.band || null,
       channel: insertWirelessInterface.channel || null,
       frequency: insertWirelessInterface.frequency || null,
+      channelWidth: insertWirelessInterface.channelWidth || null,
       noiseFloor: insertWirelessInterface.noiseFloor || null,
       txPower: insertWirelessInterface.txPower || null,
       signalStrength: insertWirelessInterface.signalStrength || null,
       mode: insertWirelessInterface.mode || null,
+      running: insertWirelessInterface.running || null,
+      disabled: insertWirelessInterface.disabled || null,
       clients: insertWirelessInterface.clients || 0,
       isActive: insertWirelessInterface.isActive !== undefined ? insertWirelessInterface.isActive : true,
       lastUpdated: new Date()
