@@ -32,18 +32,7 @@ const PerformanceReportsPage = () => {
     enabled: !!selectedDeviceId,
   });
 
-  // Thêm báo cáo mẫu cho demo - trong thực tế, dữ liệu này sẽ được lấy từ API
-  const sampleData = [
-    { date: '01/04', cpuLoad: 45, memoryUsage: 62, temperature: 42, bandwidth: 240 },
-    { date: '02/04', cpuLoad: 52, memoryUsage: 58, temperature: 44, bandwidth: 310 },
-    { date: '03/04', cpuLoad: 48, memoryUsage: 65, temperature: 46, bandwidth: 290 },
-    { date: '04/04', cpuLoad: 70, memoryUsage: 72, temperature: 48, bandwidth: 350 },
-    { date: '05/04', cpuLoad: 65, memoryUsage: 80, temperature: 50, bandwidth: 410 },
-    { date: '06/04', cpuLoad: 58, memoryUsage: 75, temperature: 45, bandwidth: 380 },
-    { date: '07/04', cpuLoad: 63, memoryUsage: 70, temperature: 43, bandwidth: 320 },
-  ];
-
-  // Sử dụng metrics từ API nếu có, nếu không thì sử dụng dữ liệu mẫu
+  // Xử lý dữ liệu metrics từ API
   const getChartData = () => {
     if (metrics && metrics.length > 0) {
       // Xử lý dữ liệu từ API
@@ -63,7 +52,8 @@ const PerformanceReportsPage = () => {
       return formattedData;
     }
     
-    return sampleData;
+    // Trả về mảng rỗng nếu không có dữ liệu từ API
+    return [];
   };
 
   const chartData = getChartData();

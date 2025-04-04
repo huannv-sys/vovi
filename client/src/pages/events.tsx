@@ -28,7 +28,7 @@ const EventHistoryPage = () => {
     queryKey: ['/api/alerts'],
   });
 
-  // Event categories for demo
+  // Event categories
   const eventCategories = {
     SYSTEM: 'System',
     SECURITY: 'Security',
@@ -36,86 +36,29 @@ const EventHistoryPage = () => {
     HARDWARE: 'Hardware',
     USER: 'User Activity'
   };
+  
+  // Fetch events data from API
+  const { data: eventsData } = useQuery<any[]>({
+    queryKey: ['/api/events'],
+  });
 
-  // Sample events data for demo
-  const sampleEvents = [
-    { 
-      id: 1, 
-      deviceId: 1, 
-      timestamp: new Date('2025-04-02T08:23:12'), 
-      category: eventCategories.SYSTEM, 
-      severity: alertSeverity.INFO, 
-      message: 'System startup completed', 
-      details: 'RouterOS v7.3 initialized successfully'
-    },
-    { 
-      id: 2, 
-      deviceId: 1, 
-      timestamp: new Date('2025-04-02T12:45:33'), 
-      category: eventCategories.SECURITY, 
-      severity: alertSeverity.WARNING, 
-      message: 'Failed login attempt', 
-      details: 'Multiple failed login attempts from IP 192.168.1.245'
-    },
-    { 
-      id: 3, 
-      deviceId: 1, 
-      timestamp: new Date('2025-04-02T15:12:05'), 
-      category: eventCategories.NETWORK, 
-      severity: alertSeverity.ERROR, 
-      message: 'Interface down', 
-      details: 'Interface ether2 changed state to down'
-    },
-    { 
-      id: 4, 
-      deviceId: 1, 
-      timestamp: new Date('2025-04-02T16:33:19'), 
-      category: eventCategories.NETWORK, 
-      severity: alertSeverity.INFO, 
-      message: 'Interface up', 
-      details: 'Interface ether2 changed state to up'
-    },
-    { 
-      id: 5, 
-      deviceId: 1, 
-      timestamp: new Date('2025-04-03T09:05:44'), 
-      category: eventCategories.HARDWARE, 
-      severity: alertSeverity.WARNING, 
-      message: 'High temperature', 
-      details: 'System temperature reached 62°C'
-    },
-    { 
-      id: 6, 
-      deviceId: 1, 
-      timestamp: new Date('2025-04-03T10:22:31'), 
-      category: eventCategories.USER, 
-      severity: alertSeverity.INFO, 
-      message: 'Configuration changed', 
-      details: 'User admin modified firewall rules'
-    },
-    { 
-      id: 7, 
-      deviceId: 2, 
-      timestamp: new Date('2025-04-03T11:15:08'), 
-      category: eventCategories.SYSTEM, 
-      severity: alertSeverity.INFO, 
-      message: 'Scheduled backup completed', 
-      details: 'System configuration backup created successfully'
-    }
-  ];
-
-  // Combine real alerts with sample events for demonstration
+  // Process events from alerts and API
   const getEventData = () => {
-    let events = [...sampleEvents];
+    let events: any[] = [];
     
+    // Convert events from API to our format
+    if (eventsData && Array.isArray(eventsData)) {
+      events = [...eventsData];
+    }
+    
+    // Add alerts as events
     if (alerts && alerts.length > 0) {
       const alertEvents = alerts.map(alert => {
         // Normalize the severity to match expected values
-        // Use any severity string value, not restricting to the enum
         const normalizedSeverity = alert.severity || alertSeverity.INFO;
         
         return {
-          id: 1000 + alert.id, // Avoid ID collision with sample data
+          id: alert.id,
           deviceId: alert.deviceId,
           timestamp: new Date(alert.timestamp),
           category: eventCategories.SYSTEM,

@@ -58,26 +58,56 @@ const SecurityPage = () => {
     }
   }, [devices, selectedDeviceId]);
 
-  // Mock security data for demonstration
-  const [firewallRules, setFirewallRules] = useState<FirewallRule[]>([
-    { id: 1, name: "Allow HTTP", chain: "forward", action: "accept", protocol: "tcp", dstPort: "80", state: "enabled" },
-    { id: 2, name: "Allow HTTPS", chain: "forward", action: "accept", protocol: "tcp", dstPort: "443", state: "enabled" },
-    { id: 3, name: "Block Telnet", chain: "forward", action: "drop", protocol: "tcp", dstPort: "23", state: "enabled" },
-    { id: 4, name: "Allow SSH", chain: "forward", action: "accept", protocol: "tcp", dstPort: "22", state: "disabled" },
-    { id: 5, name: "Block Malicious IPs", chain: "forward", action: "drop", protocol: "any", dstPort: "any", srcAddress: "", dstAddress: "192.168.5.123", state: "enabled" }
-  ]);
+  // Fetch firewall rules data from API
+  const { data: firewallRulesData } = useQuery<FirewallRule[]>({
+    queryKey: ['/api/devices', selectedDeviceId, 'firewall'],
+    enabled: !!selectedDeviceId,
+  });
+  
+  const [firewallRules, setFirewallRules] = useState<FirewallRule[]>([]);
+  
+  // Update firewall rules when data is fetched
+  useEffect(() => {
+    if (firewallRulesData) {
+      setFirewallRules(firewallRulesData);
+    } else {
+      setFirewallRules([]);
+    }
+  }, [firewallRulesData]);
+  
+  // Fetch security threats data from API
+  const { data: securityThreatsData } = useQuery<any[]>({
+    queryKey: ['/api/devices', selectedDeviceId, 'security-threats'],
+    enabled: !!selectedDeviceId,
+  });
+  
+  const [securityThreats, setSecurityThreats] = useState<any[]>([]);
+  
+  // Update security threats when data is fetched
+  useEffect(() => {
+    if (securityThreatsData) {
+      setSecurityThreats(securityThreatsData);
+    } else {
+      setSecurityThreats([]);
+    }
+  }, [securityThreatsData]);
 
-  const securityThreats = [
-    { id: 1, type: "bruteforce", source: "192.168.5.123", target: "SSH", count: 15, lastAttempt: "2025-04-03T08:45:21Z", severity: "high" },
-    { id: 2, type: "portscan", source: "192.168.100.53", target: "Multiple ports", count: 132, lastAttempt: "2025-04-03T10:12:09Z", severity: "medium" },
-    { id: 3, type: "malware", source: "Unknown", target: "Internal network", count: 3, lastAttempt: "2025-04-02T22:35:47Z", severity: "critical" }
-  ];
-
-  const vpnUsers = [
-    { id: 1, username: "john.doe", status: "active", ipAddress: "10.8.0.2", connectedSince: "2025-04-03T09:30:00Z", bytesReceived: 15482913, bytesSent: 2854102 },
-    { id: 2, username: "sarah.smith", status: "active", ipAddress: "10.8.0.3", connectedSince: "2025-04-03T11:15:22Z", bytesReceived: 8245903, bytesSent: 1254831 },
-    { id: 3, username: "admin", status: "inactive", ipAddress: "10.8.0.4", connectedSince: "2025-04-02T14:20:15Z", bytesReceived: 0, bytesSent: 0 }
-  ];
+  // Fetch VPN users data from API
+  const { data: vpnUsersData } = useQuery<any[]>({
+    queryKey: ['/api/devices', selectedDeviceId, 'vpn-users'],
+    enabled: !!selectedDeviceId,
+  });
+  
+  const [vpnUsers, setVpnUsers] = useState<any[]>([]);
+  
+  // Update VPN users when data is fetched
+  useEffect(() => {
+    if (vpnUsersData) {
+      setVpnUsers(vpnUsersData);
+    } else {
+      setVpnUsers([]);
+    }
+  }, [vpnUsersData]);
 
   const formatDateTime = (dateStr: string) => {
     return new Date(dateStr).toLocaleString();
@@ -101,6 +131,8 @@ const SecurityPage = () => {
   const selectedDevice = getDeviceById(selectedDeviceId);
 
   const getSeverityBadge = (severity: string) => {
+    if (!severity) return <Badge>Unknown</Badge>;
+    
     switch (severity.toLowerCase()) {
       case 'critical':
         return <Badge variant="destructive">Critical</Badge>;

@@ -17,7 +17,7 @@ const SettingsPage = () => {
   const [pollingInterval, setPollingInterval] = useState<number>(60); // seconds
   const [emailNotificationsEnabled, setEmailNotificationsEnabled] = useState<boolean>(true);
   const [smsNotificationsEnabled, setSmsNotificationsEnabled] = useState<boolean>(false);
-  const [emailAddress, setEmailAddress] = useState<string>("admin@example.com");
+  const [emailAddress, setEmailAddress] = useState<string>("");
   const [phoneNumber, setPhoneNumber] = useState<string>("");
   const [alertThreshold, setAlertThreshold] = useState<number>(80); // percentage
   
@@ -45,24 +45,49 @@ const SettingsPage = () => {
     }
   };
   
-  const handleSaveNotificationSettings = () => {
-    // Simulating API call
-    setTimeout(() => {
+  const handleSaveNotificationSettings = async () => {
+    try {
+      // Make a real API call to save notification settings
+      await apiRequest('POST', '/api/notification-settings', {
+        emailEnabled: emailNotificationsEnabled,
+        emailAddress: emailAddress,
+        smsEnabled: smsNotificationsEnabled,
+        phoneNumber: phoneNumber
+      });
+      
       toast({
         title: "Settings Updated",
         description: "Notification settings have been saved",
       });
-    }, 500);
+    } catch (error) {
+      console.error('Failed to save notification settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save notification settings",
+        variant: "destructive",
+      });
+    }
   };
   
-  const handleSaveAlertSettings = () => {
-    // Simulating API call
-    setTimeout(() => {
+  const handleSaveAlertSettings = async () => {
+    try {
+      // Make a real API call to save alert settings
+      await apiRequest('POST', '/api/alert-settings', {
+        threshold: alertThreshold
+      });
+      
       toast({
         title: "Settings Updated",
         description: "Alert settings have been saved",
       });
-    }, 500);
+    } catch (error) {
+      console.error('Failed to save alert settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save alert settings",
+        variant: "destructive",
+      });
+    }
   };
   
   const handleTestConnection = async (deviceId: number) => {
