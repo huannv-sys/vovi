@@ -3,6 +3,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { mikrotikService } from "./services/mikrotik";
+import { wirelessService } from "./services/wireless";
+import { capsmanService } from "./services/capsman";
 import { schedulerService } from "./services/scheduler";
 import { insertDeviceSchema, insertAlertSchema } from "@shared/schema";
 import { z } from "zod";
@@ -128,7 +130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.get("/devices/:id/wireless", async (req: Request, res: Response) => {
     try {
       const deviceId = parseInt(req.params.id);
-      const wirelessInterfaces = await storage.getWirelessInterfaces(deviceId);
+      const wirelessInterfaces = await wirelessService.getWirelessInterfaces(deviceId);
       
       res.json(wirelessInterfaces);
     } catch (error) {
@@ -139,7 +141,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.get("/wireless/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
-      const wirelessInterface = await storage.getWirelessInterface(id);
+      const wirelessInterface = await wirelessService.getWirelessInterface(id);
       
       if (!wirelessInterface) {
         return res.status(404).json({ message: "Wireless interface not found" });
@@ -161,7 +163,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(200).json([]);
       }
       
-      let capsmanAPs = await storage.getCapsmanAPs(deviceId);
+      let capsmanAPs = await capsmanService.getCapsmanAPs(deviceId);
       
       // Trả về dữ liệu CAPsMAN APs thực tế - không tạo dữ liệu mẫu
       res.json(capsmanAPs || []);
@@ -174,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.get("/capsman/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
-      let capsmanAP = await storage.getCapsmanAP(id);
+      let capsmanAP = await capsmanService.getCapsmanAP(id);
       
       if (!capsmanAP) {
         return res.status(404).json({ message: "CAPsMAN AP not found" });
@@ -191,7 +193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.get("/capsman/:id/clients", async (req: Request, res: Response) => {
     try {
       const apId = parseInt(req.params.id);
-      let clients = await storage.getCapsmanClients(apId);
+      let clients = await capsmanService.getCapsmanClients(apId);
       
       // Trả về danh sách clients thực tế - không tạo dữ liệu mẫu
       res.json(clients || []);
@@ -204,7 +206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.get("/capsman/client/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
-      const client = await storage.getCapsmanClient(id);
+      const client = await capsmanService.getCapsmanClient(id);
       
       if (!client) {
         return res.status(404).json({ message: "CAPsMAN client not found" });
@@ -226,7 +228,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(200).json([]);
       }
       
-      const clients = await storage.getCapsmanClientsByDevice(deviceId);
+      const clients = await capsmanService.getCapsmanClientsByDevice(deviceId);
       res.json(clients);
     } catch (error) {
       console.error("Lỗi khi lấy danh sách clients theo thiết bị:", error);
@@ -298,14 +300,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Device not found" });
       }
       
+      // Sử dụng mikrotikService để collect các metrics cơ bản
       const success = await mikrotikService.collectDeviceMetrics(deviceId);
       
       if (!success) {
         return res.status(500).json({ message: "Failed to collect device metrics" });
       }
       
+      // Nếu thiết bị có wireless, collect wireless stats
+      if (device.hasWireless) {
+        await wirelessService.collectWirelessStats(deviceId);
+      }
+      
+      // Nếu thiết bị có CAPsMAN, collect capsman stats
+      if (device.hasCAPsMAN) {
+        await capsmanService.collectCapsmanStats(deviceId);
+      }
+      
       res.json({ message: "Device metrics refreshed successfully" });
     } catch (error) {
+      console.error("Error refreshing device metrics:", error);
       res.status(500).json({ message: "Failed to refresh device metrics" });
     }
   });

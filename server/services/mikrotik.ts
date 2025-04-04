@@ -4,12 +4,12 @@ import type {
   InsertInterface, 
   InsertAlert, 
   AlertSeverity, 
-  InsertWirelessInterface,
-  InsertCapsmanAP,
-  InsertCapsmanClient
+  Device
 } from "@shared/schema";
 import { storage } from "../storage";
 import { alertSeverity } from "@shared/schema";
+import { wirelessService } from "./wireless";
+import { capsmanService } from "./capsman";
 
 // Sử dụng thư viện node-routeros để kết nối với RouterOS
 import * as RouterOS from 'node-routeros';
@@ -162,6 +162,13 @@ class MikrotikClient {
 export class MikrotikService {
   private clients: Map<number, MikrotikClient> = new Map();
   
+  /**
+   * Lấy client kết nối tới thiết bị MikroTik theo ID
+   */
+  getClientForDevice(deviceId: number): MikrotikClient | undefined {
+    return this.clients.get(deviceId);
+  }
+  
   async connectToDevice(deviceId: number): Promise<boolean> {
     const device = await storage.getDevice(deviceId);
     if (!device) {
@@ -201,7 +208,7 @@ export class MikrotikService {
         deviceId,
         alertSeverity.ERROR,
         `Failed to connect to device on any port`,
-        null
+        "connection"
       );
       
       return false;
@@ -303,7 +310,7 @@ export class MikrotikService {
           
           if (Array.isArray(wirelessData) && wirelessData.length > 0) {
             await storage.updateDevice(deviceId, { hasWireless: true });
-            await this.collectWirelessStats(deviceId);
+            await wirelessService.collectWirelessStats(deviceId);
           } else {
             await storage.updateDevice(deviceId, { hasWireless: false });
           }
@@ -318,7 +325,7 @@ export class MikrotikService {
           
           if (Array.isArray(capsmanData) && capsmanData.length > 0) {
             await storage.updateDevice(deviceId, { hasCAPsMAN: true });
-            await this.collectCapsmanStats(deviceId);
+            await capsmanService.collectCapsmanStats(deviceId);
           } else {
             await storage.updateDevice(deviceId, { hasCAPsMAN: false });
           }
@@ -346,7 +353,7 @@ export class MikrotikService {
           deviceId,
           alertSeverity.ERROR,
           `Failed to collect metrics: ${error.message}`,
-          null
+          "metrics"
         );
         
         await this.disconnectFromDevice(deviceId);
@@ -363,7 +370,7 @@ export class MikrotikService {
     deviceId: number, 
     severity: AlertSeverity, 
     message: string, 
-    resourceId: number | null
+    source: string | null
   ): Promise<void> {
     try {
       const device = await storage.getDevice(deviceId);
@@ -377,7 +384,7 @@ export class MikrotikService {
         timestamp: new Date(),
         severity,
         message,
-        acknowledged: false
+        source
       };
       
       await storage.createAlert(alert);
@@ -407,7 +414,7 @@ export class MikrotikService {
           deviceId,
           alertSeverity.WARNING,
           'No interfaces found on device',
-          null
+          "interface"
         );
         return;
       }
@@ -450,7 +457,7 @@ export class MikrotikService {
               deviceId,
               alertSeverity.WARNING,
               `Interface ${iface.name} is down`,
-              existingInterface.id
+              "interface"
             );
           }
         } else {
@@ -484,7 +491,7 @@ export class MikrotikService {
               deviceId,
               alertSeverity.WARNING,
               `Interface ${iface.name} is down`,
-              createdInterface.id
+              "interface"
             );
           }
         }
@@ -495,315 +502,29 @@ export class MikrotikService {
     }
   }
   
-  private async collectWirelessStats(deviceId: number): Promise<void> {
-    const client = this.clients.get(deviceId);
-    if (!client) {
-      throw new Error(`No connection to device ${deviceId}`);
-    }
-    
+  /**
+   * Parse RouterOS uptime string to milliseconds
+   * Example: "4w6h46m50s" -> 2608010000
+   */
+  public parseUptime(uptimeStr: string): number {
     try {
-      console.log(`Collecting wireless interface data for device ${deviceId}...`);
+      const regex = /(?:(\d+)w)?(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/;
+      const matches = uptimeStr.match(regex);
+      if (!matches) return 0;
       
-      // Lấy danh sách wireless interfaces
-      const wirelessData = await client.executeCommand('/interface/wireless/print', [
-        { 'detail': '' } // Sử dụng detail để lấy thêm thông tin
-      ]);
+      const weeks = parseInt(matches[1] || '0') * 7 * 24 * 60 * 60 * 1000;
+      const days = parseInt(matches[2] || '0') * 24 * 60 * 60 * 1000;
+      const hours = parseInt(matches[3] || '0') * 60 * 60 * 1000;
+      const minutes = parseInt(matches[4] || '0') * 60 * 1000;
+      const seconds = parseInt(matches[5] || '0') * 1000;
       
-      console.log(`Received ${wirelessData?.length || 0} wireless interfaces`);
-      
-      if (!Array.isArray(wirelessData)) {
-        throw new Error('Invalid wireless interface data format');
-      }
-      
-      // Đánh dấu các wireless interfaces hiện tại để xóa những interface không còn tồn tại
-      const currentWirelessIds = new Set<number>();
-      const existingWirelessInterfaces = await storage.getWirelessInterfaces(deviceId);
-      
-      for (const wifiIface of wirelessData) {
-        console.log(`Processing wireless interface: ${wifiIface.name}`, wifiIface);
-        
-        // Tìm wireless interface đã tồn tại trong cơ sở dữ liệu
-        const existingWifi = existingWirelessInterfaces.find(w => w.name === wifiIface.name);
-        
-        // Đếm số client kết nối vào interface này
-        let clientCount = 0;
-        try {
-          const registrationTable = await client.executeCommand('/interface/wireless/registration-table/print');
-          if (Array.isArray(registrationTable)) {
-            clientCount = registrationTable.filter(reg => reg.interface === wifiIface.name).length;
-            console.log(`Found ${clientCount} clients connected to ${wifiIface.name}`);
-          }
-        } catch (regError) {
-          console.warn(`Could not get registration table for ${wifiIface.name}:`, regError);
-        }
-        
-        if (existingWifi) {
-          // Cập nhật wireless interface
-          await storage.updateWirelessInterface(existingWifi.id, {
-            ssid: wifiIface.ssid || '',
-            mode: wifiIface.mode || 'ap-bridge',
-            band: wifiIface.band || '2ghz-b/g/n',
-            channel: wifiIface.channel ? wifiIface.channel.toString() : '',
-            txPower: wifiIface['tx-power'] ? wifiIface['tx-power'].toString() : '',
-            disabled: wifiIface.disabled === 'true' || wifiIface.disabled === true,
-            running: wifiIface.running === 'true' || wifiIface.running === true,
-            clients: clientCount
-          });
-          
-          currentWirelessIds.add(existingWifi.id);
-        } else {
-          // Tạo wireless interface mới
-          const newWirelessInterface: InsertWirelessInterface = {
-            deviceId,
-            name: wifiIface.name || 'unknown',
-            macAddress: wifiIface['mac-address'] || '00:00:00:00:00:00',
-            ssid: wifiIface.ssid || '',
-            mode: wifiIface.mode || 'ap-bridge',
-            band: wifiIface.band || '2ghz-b/g/n',
-            channel: wifiIface.channel ? wifiIface.channel.toString() : '',
-            txPower: wifiIface['tx-power'] ? wifiIface['tx-power'].toString() : '',
-            disabled: wifiIface.disabled === 'true' || wifiIface.disabled === true,
-            running: wifiIface.running === 'true' || wifiIface.running === true,
-            clients: clientCount
-          };
-          
-          const createdWifi = await storage.createWirelessInterface(newWirelessInterface);
-          currentWirelessIds.add(createdWifi.id);
-        }
-        
-        // Thu thập thông tin các clients kết nối vào interface này
-        if (clientCount > 0) {
-          try {
-            const regTable = await client.executeCommand('/interface/wireless/registration-table/print', [
-              { 'detail': '' }
-            ]);
-            
-            if (Array.isArray(regTable)) {
-              const ifaceClients = regTable.filter(reg => reg.interface === wifiIface.name);
-              console.log(`Processing ${ifaceClients.length} clients for ${wifiIface.name}`);
-              
-              // Xử lý thông tin từng client
-              for (const client of ifaceClients) {
-                console.log(`Client details:`, client);
-                // Ở đây có thể lưu thông tin client vào DB nếu cần
-              }
-            }
-          } catch (clientErr) {
-            console.warn(`Error fetching client details for ${wifiIface.name}:`, clientErr);
-          }
-        }
-      }
-      
-      // Xóa wireless interfaces không còn tồn tại
-      for (const wifiIface of existingWirelessInterfaces) {
-        if (!currentWirelessIds.has(wifiIface.id)) {
-          await storage.deleteWirelessInterface(wifiIface.id);
-        }
-      }
+      return weeks + days + hours + minutes + seconds;
     } catch (error) {
-      console.error(`Error collecting wireless stats for device ${deviceId}:`, error);
-      throw error;
+      console.error(`Error parsing uptime: ${uptimeStr}`, error);
+      return 0;
     }
   }
   
-  private async collectCapsmanStats(deviceId: number): Promise<void> {
-    const client = this.clients.get(deviceId);
-    if (!client) {
-      throw new Error(`No connection to device ${deviceId}`);
-    }
-    
-    try {
-      console.log(`Collecting CAPsMAN data for device ${deviceId}...`);
-      
-      // Lấy danh sách CAPsMAN Access Points với chi tiết
-      const capsmanAPData = await client.executeCommand('/caps-man/access-point/print', [
-        { 'detail': '' } // Lấy thêm thông tin chi tiết
-      ]);
-      
-      if (!Array.isArray(capsmanAPData)) {
-        throw new Error('Invalid CAPsMAN AP data format');
-      }
-      
-      console.log(`Found ${capsmanAPData.length} CAPsMAN access points`);
-      
-      // Đánh dấu các CAPsMAN APs hiện tại để xóa những AP không còn tồn tại
-      const currentAPIds = new Set<number>();
-      const existingAPs = await storage.getCapsmanAPs(deviceId);
-      
-      // Lấy thông tin cấu hình CAPsMAN để biết thêm chi tiết
-      let capsmanConfig = [];
-      try {
-        capsmanConfig = await client.executeCommand('/caps-man/manager/print');
-        console.log(`CAPsMAN manager configuration:`, capsmanConfig);
-      } catch (configError) {
-        console.warn(`Could not get CAPsMAN manager configuration:`, configError);
-      }
-      
-      // Lấy thông tin các cấu hình không dây của CAPsMAN
-      let capsmanConfigs = [];
-      try {
-        capsmanConfigs = await client.executeCommand('/caps-man/configuration/print');
-        console.log(`Found ${capsmanConfigs.length} CAPsMAN configurations`);
-      } catch (configsError) {
-        console.warn(`Could not get CAPsMAN configurations:`, configsError);
-      }
-      
-      for (const ap of capsmanAPData) {
-        console.log(`Processing CAPsMAN AP: ${ap.name || ap['mac-address']}`, ap);
-        
-        // Tìm CAPsMAN AP đã tồn tại trong cơ sở dữ liệu
-        const existingAP = existingAPs.find(a => a.name === ap.name || a.macAddress === ap['mac-address']);
-        
-        // Lấy thông tin cấu hình mà AP này đang sử dụng
-        let configName = ap['configuration'] || '';
-        let configDetails = '';
-        
-        if (configName && Array.isArray(capsmanConfigs)) {
-          const config = capsmanConfigs.find(c => c.name === configName);
-          if (config) {
-            configDetails = `${config['mode'] || ''} ${config['band'] || ''} ${config['channel-width'] || ''}`;
-            console.log(`AP ${ap.name} using configuration: ${configName}, details: ${configDetails}`);
-          }
-        }
-        
-        if (existingAP) {
-          // Cập nhật CAPsMAN AP với thông tin bổ sung
-          await storage.updateCapsmanAP(existingAP.id, {
-            name: ap.name || 'unknown',
-            macAddress: ap['mac-address'] || '00:00:00:00:00:00',
-            model: ap.model || '',
-            identity: ap.identity || '',
-            version: ap.version || '',
-            radioMac: ap['radio-mac'] || ap['mac-address'] || '',
-            state: ap.state || 'unknown',
-            configuration: configName,
-            configDetails: configDetails,
-            channel: ap['current-channel'] || '',
-            txPower: ap['current-tx-power'] || ''
-          });
-          
-          currentAPIds.add(existingAP.id);
-          
-          // Thu thập clients cho AP này
-          await this.collectCapsmanClients(deviceId, existingAP.id);
-        } else {
-          // Tạo CAPsMAN AP mới với thông tin bổ sung
-          const newCap: InsertCapsmanAP = {
-            deviceId,
-            name: ap.name || 'unknown',
-            macAddress: ap['mac-address'] || '00:00:00:00:00:00',
-            model: ap.model || '',
-            identity: ap.identity || '',
-            serialNumber: ap['serial-number'] || '',
-            version: ap.version || '',
-            radioMac: ap['radio-mac'] || ap['mac-address'] || '',
-            state: ap.state || 'unknown',
-            channel: ap['current-channel'] || '',
-            txPower: ap['current-tx-power'] || ''
-          };
-          
-          const createdAP = await storage.createCapsmanAP(newCap);
-          currentAPIds.add(createdAP.id);
-          
-          // Thu thập clients cho AP mới
-          await this.collectCapsmanClients(deviceId, createdAP.id);
-        }
-      }
-      
-      // Xóa CAPsMAN APs không còn tồn tại
-      for (const ap of existingAPs) {
-        if (!currentAPIds.has(ap.id)) {
-          await storage.deleteCapsmanAP(ap.id);
-        }
-      }
-    } catch (error) {
-      console.error(`Error collecting CAPsMAN stats for device ${deviceId}:`, error);
-      throw error;
-    }
-  }
-  
-  private async collectCapsmanClients(deviceId: number, apId: number): Promise<void> {
-    const client = this.clients.get(deviceId);
-    if (!client) {
-      throw new Error(`No connection to device ${deviceId}`);
-    }
-    
-    try {
-      const ap = await storage.getCapsmanAP(apId);
-      if (!ap) {
-        throw new Error(`CAPsMAN AP with ID ${apId} not found`);
-      }
-      
-      // Lấy danh sách clients kết nối vào AP này
-      const registrationData = await client.executeCommand('/caps-man/registration-table/print');
-      
-      if (!Array.isArray(registrationData)) {
-        throw new Error('Invalid CAPsMAN client data format');
-      }
-      
-      // Lọc clients cho AP hiện tại
-      const apClients = registrationData.filter(c => 
-        c['radio-mac'] === ap.radioMac || 
-        c['interface'] === ap.name ||
-        c['ap-mac'] === ap.macAddress
-      );
-      
-      // Đánh dấu các clients hiện tại để xóa những client không còn tồn tại
-      const currentClientIds = new Set<number>();
-      const existingClients = await storage.getCapsmanClients(apId);
-      
-      for (const clientData of apClients) {
-        const macAddress = clientData['mac-address'] || '';
-        
-        // Tìm client đã tồn tại trong cơ sở dữ liệu
-        const existingClient = existingClients.find(c => c.macAddress === macAddress);
-        
-        if (existingClient) {
-          // Cập nhật client
-          await storage.updateCapsmanClient(existingClient.id, {
-            ipAddress: clientData.ip || '',
-            username: clientData.user || '',
-            signalStrength: parseInt(clientData.signal || '0', 10),
-            interface: clientData.interface || '',
-            hostname: clientData['host-name'] || '',
-            txRate: clientData['tx-rate'] || '',
-            rxRate: clientData['rx-rate'] || '',
-            connectedTime: clientData.uptime || ''
-          });
-          
-          currentClientIds.add(existingClient.id);
-        } else {
-          // Tạo client mới
-          const newClient: InsertCapsmanClient = {
-            deviceId,
-            apId,
-            macAddress,
-            ipAddress: clientData.ip || '',
-            username: clientData.user || '',
-            signalStrength: parseInt(clientData.signal || '0', 10),
-            interface: clientData.interface || '',
-            hostname: clientData['host-name'] || '',
-            txRate: clientData['tx-rate'] || '',
-            rxRate: clientData['rx-rate'] || '',
-            connectedTime: clientData.uptime || ''
-          };
-          
-          const createdClient = await storage.createCapsmanClient(newClient);
-          currentClientIds.add(createdClient.id);
-        }
-      }
-      
-      // Xóa clients không còn tồn tại
-      for (const existingClient of existingClients) {
-        if (!currentClientIds.has(existingClient.id)) {
-          await storage.deleteCapsmanClient(existingClient.id);
-        }
-      }
-    } catch (error) {
-      console.error(`Error collecting CAPsMAN clients for device ${deviceId} and AP ${apId}:`, error);
-      throw error;
-    }
-  }
   
   private async collectFirewallRules(deviceId: number): Promise<void> {
     const client = this.clients.get(deviceId);
