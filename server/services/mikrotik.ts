@@ -10,7 +10,8 @@ import type {
 } from "@shared/schema";
 import { storage } from "../storage";
 import { alertSeverity } from "@shared/schema";
-import * as rosjs from 'routeros-client';
+// Sử dụng phương pháp import chuẩn để tránh lỗi với TypeScript
+import RouterOSClient from 'routeros-client';
 
 // RouterOS client for connecting to MikroTik devices
 class MikrotikClient {
@@ -18,7 +19,7 @@ class MikrotikClient {
   private ipAddress: string;
   private username: string;
   private password: string;
-  private client: rosjs.RouterOSClient | null = null;
+  private client: any = null;
   public useMockData: boolean = false; // Không bao giờ sử dụng dữ liệu mẫu, luôn kết nối thiết bị thật
   private port: number = 8728; // Cổng API mặc định của RouterOS
   
@@ -120,7 +121,8 @@ class MikrotikClient {
         const connectionPromise = new Promise<boolean>((resolve, reject) => {
           try {
             // Tạo mới client
-            this.client = new rosjs.RouterOSClient({
+            // @ts-ignore: Ignore typechecking for RouterOSClient constructor
+            this.client = new RouterOSClient({
               host: this.ipAddress,
               user: this.username,
               password: this.password,
