@@ -206,36 +206,38 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
         <div className="grid grid-cols-12 gap-2">
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Uptime</span>
-            <span className="text-green-400 font-medium">5.0 days</span>
+            <span className="text-green-400 font-medium">{device?.uptime || latestMetric?.uptime || 'Unknown'}</span>
           </div>
           
           <div className="col-span-2 flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Model</span>
-            <span className="text-green-400 font-medium">{device?.model || 'RouterOS CRS309-1G-8S+'}</span>
+            <span className="text-green-400 font-medium">{device?.model || 'Unknown'}</span>
           </div>
           
           <div className="col-span-2 flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">RouterOS date</span>
             <span className="text-green-400 font-medium">
-              {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}<br />
-              {new Date().toLocaleDateString('en-GB')}
+              {device?.lastSeen ? new Date(device.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}<br />
+              {device?.lastSeen ? new Date(device.lastSeen).toLocaleDateString('en-GB') : 'Unknown'}
             </span>
           </div>
           
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Firmware</span>
-            <span className="text-green-400 font-medium">{device?.firmware || '7.16.2'}</span>
+            <span className="text-green-400 font-medium">{device?.routerOsVersion || 'Unknown'}</span>
           </div>
           
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Board</span>
-            <span className="text-green-400 font-medium">{latestMetric?.boardTemp !== null && latestMetric?.boardTemp !== undefined ? latestMetric.boardTemp.toFixed(1) + '°C' : 'N/A'}</span>
+            <span className="text-green-400 font-medium">{device?.model || 'N/A'}</span>
           </div>
 
           <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
             <div>
               <span className="text-gray-400 mb-1">Status</span>
-              <span className="text-green-400 font-medium block">Running</span>
+              <span className={`${device?.isOnline ? 'text-green-400' : 'text-red-400'} font-medium block`}>
+                {device?.isOnline ? 'Running' : 'Offline'}
+              </span>
             </div>
             <Info className="text-gray-500" size={16} />
           </div>
@@ -266,7 +268,7 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
 
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">CPU Mhz</span>
-            <span className="text-green-400 font-medium">{device?.cpu?.includes('MHz') ? device.cpu : '800 MHz'}</span>
+            <span className="text-green-400 font-medium">{device?.cpu || 'Unknown'}</span>
           </div>
         </div>
       </div>
