@@ -502,8 +502,14 @@ export class MikrotikService {
     }
     
     try {
+      console.log(`Collecting wireless interface data for device ${deviceId}...`);
+      
       // Lấy danh sách wireless interfaces
-      const wirelessData = await client.executeCommand('/interface/wireless/print');
+      const wirelessData = await client.executeCommand('/interface/wireless/print', [
+        { 'detail': '' } // Sử dụng detail để lấy thêm thông tin
+      ]);
+      
+      console.log(`Received ${wirelessData?.length || 0} wireless interfaces`);
       
       if (!Array.isArray(wirelessData)) {
         throw new Error('Invalid wireless interface data format');
@@ -514,8 +520,22 @@ export class MikrotikService {
       const existingWirelessInterfaces = await storage.getWirelessInterfaces(deviceId);
       
       for (const wifiIface of wirelessData) {
+        console.log(`Processing wireless interface: ${wifiIface.name}`, wifiIface);
+        
         // Tìm wireless interface đã tồn tại trong cơ sở dữ liệu
         const existingWifi = existingWirelessInterfaces.find(w => w.name === wifiIface.name);
+        
+        // Đếm số client kết nối vào interface này
+        let clientCount = 0;
+        try {
+          const registrationTable = await client.executeCommand('/interface/wireless/registration-table/print');
+          if (Array.isArray(registrationTable)) {
+            clientCount = registrationTable.filter(reg => reg.interface === wifiIface.name).length;
+            console.log(`Found ${clientCount} clients connected to ${wifiIface.name}`);
+          }
+        } catch (regError) {
+          console.warn(`Could not get registration table for ${wifiIface.name}:`, regError);
+        }
         
         if (existingWifi) {
           // Cập nhật wireless interface
@@ -526,7 +546,8 @@ export class MikrotikService {
             channel: wifiIface.channel ? wifiIface.channel.toString() : '',
             txPower: wifiIface['tx-power'] ? wifiIface['tx-power'].toString() : '',
             disabled: wifiIface.disabled === 'true' || wifiIface.disabled === true,
-            running: wifiIface.running === 'true' || wifiIface.running === true
+            running: wifiIface.running === 'true' || wifiIface.running === true,
+            clients: clientCount
           });
           
           currentWirelessIds.add(existingWifi.id);
@@ -543,11 +564,33 @@ export class MikrotikService {
             txPower: wifiIface['tx-power'] ? wifiIface['tx-power'].toString() : '',
             disabled: wifiIface.disabled === 'true' || wifiIface.disabled === true,
             running: wifiIface.running === 'true' || wifiIface.running === true,
-            clients: 0
+            clients: clientCount
           };
           
           const createdWifi = await storage.createWirelessInterface(newWirelessInterface);
           currentWirelessIds.add(createdWifi.id);
+        }
+        
+        // Thu thập thông tin các clients kết nối vào interface này
+        if (clientCount > 0) {
+          try {
+            const regTable = await client.executeCommand('/interface/wireless/registration-table/print', [
+              { 'detail': '' }
+            ]);
+            
+            if (Array.isArray(regTable)) {
+              const ifaceClients = regTable.filter(reg => reg.interface === wifiIface.name);
+              console.log(`Processing ${ifaceClients.length} clients for ${wifiIface.name}`);
+              
+              // Xử lý thông tin từng client
+              for (const client of ifaceClients) {
+                console.log(`Client details:`, client);
+                // Ở đây có thể lưu thông tin client vào DB nếu cần
+              }
+            }
+          } catch (clientErr) {
+            console.warn(`Error fetching client details for ${wifiIface.name}:`, clientErr);
+          }
         }
       }
       
@@ -570,23 +613,61 @@ export class MikrotikService {
     }
     
     try {
-      // Lấy danh sách CAPsMAN Access Points
-      const capsmanAPData = await client.executeCommand('/caps-man/access-point/print');
+      console.log(`Collecting CAPsMAN data for device ${deviceId}...`);
+      
+      // Lấy danh sách CAPsMAN Access Points với chi tiết
+      const capsmanAPData = await client.executeCommand('/caps-man/access-point/print', [
+        { 'detail': '' } // Lấy thêm thông tin chi tiết
+      ]);
       
       if (!Array.isArray(capsmanAPData)) {
         throw new Error('Invalid CAPsMAN AP data format');
       }
       
+      console.log(`Found ${capsmanAPData.length} CAPsMAN access points`);
+      
       // Đánh dấu các CAPsMAN APs hiện tại để xóa những AP không còn tồn tại
       const currentAPIds = new Set<number>();
       const existingAPs = await storage.getCapsmanAPs(deviceId);
       
+      // Lấy thông tin cấu hình CAPsMAN để biết thêm chi tiết
+      let capsmanConfig = [];
+      try {
+        capsmanConfig = await client.executeCommand('/caps-man/manager/print');
+        console.log(`CAPsMAN manager configuration:`, capsmanConfig);
+      } catch (configError) {
+        console.warn(`Could not get CAPsMAN manager configuration:`, configError);
+      }
+      
+      // Lấy thông tin các cấu hình không dây của CAPsMAN
+      let capsmanConfigs = [];
+      try {
+        capsmanConfigs = await client.executeCommand('/caps-man/configuration/print');
+        console.log(`Found ${capsmanConfigs.length} CAPsMAN configurations`);
+      } catch (configsError) {
+        console.warn(`Could not get CAPsMAN configurations:`, configsError);
+      }
+      
       for (const ap of capsmanAPData) {
+        console.log(`Processing CAPsMAN AP: ${ap.name || ap['mac-address']}`, ap);
+        
         // Tìm CAPsMAN AP đã tồn tại trong cơ sở dữ liệu
         const existingAP = existingAPs.find(a => a.name === ap.name || a.macAddress === ap['mac-address']);
         
+        // Lấy thông tin cấu hình mà AP này đang sử dụng
+        let configName = ap['configuration'] || '';
+        let configDetails = '';
+        
+        if (configName && Array.isArray(capsmanConfigs)) {
+          const config = capsmanConfigs.find(c => c.name === configName);
+          if (config) {
+            configDetails = `${config['mode'] || ''} ${config['band'] || ''} ${config['channel-width'] || ''}`;
+            console.log(`AP ${ap.name} using configuration: ${configName}, details: ${configDetails}`);
+          }
+        }
+        
         if (existingAP) {
-          // Cập nhật CAPsMAN AP
+          // Cập nhật CAPsMAN AP với thông tin bổ sung
           await storage.updateCapsmanAP(existingAP.id, {
             name: ap.name || 'unknown',
             macAddress: ap['mac-address'] || '00:00:00:00:00:00',
@@ -594,7 +675,11 @@ export class MikrotikService {
             identity: ap.identity || '',
             version: ap.version || '',
             radioMac: ap['radio-mac'] || ap['mac-address'] || '',
-            state: ap.state || 'unknown'
+            state: ap.state || 'unknown',
+            configuration: configName,
+            configDetails: configDetails,
+            channel: ap['current-channel'] || '',
+            txPower: ap['current-tx-power'] || ''
           });
           
           currentAPIds.add(existingAP.id);
@@ -602,7 +687,7 @@ export class MikrotikService {
           // Thu thập clients cho AP này
           await this.collectCapsmanClients(deviceId, existingAP.id);
         } else {
-          // Tạo CAPsMAN AP mới
+          // Tạo CAPsMAN AP mới với thông tin bổ sung
           const newCap: InsertCapsmanAP = {
             deviceId,
             name: ap.name || 'unknown',
@@ -612,7 +697,9 @@ export class MikrotikService {
             serialNumber: ap['serial-number'] || '',
             version: ap.version || '',
             radioMac: ap['radio-mac'] || ap['mac-address'] || '',
-            state: ap.state || 'unknown'
+            state: ap.state || 'unknown',
+            channel: ap['current-channel'] || '',
+            txPower: ap['current-tx-power'] || ''
           };
           
           const createdAP = await storage.createCapsmanAP(newCap);
@@ -725,42 +812,140 @@ export class MikrotikService {
     }
     
     try {
-      // Thu thập luật tường lửa từ filter 
-      const filterRules = await client.executeCommand('/ip/firewall/filter/print');
+      console.log(`Collecting firewall rules for device ${deviceId}...`);
       
-      if (Array.isArray(filterRules)) {
-        // Đếm số lượng luật đang kích hoạt và bị vô hiệu hóa
-        let activeRules = 0;
-        let disabledRules = 0;
+      // Thu thập luật tường lửa từ filter chi tiết
+      try {
+        const filterRules = await client.executeCommand('/ip/firewall/filter/print', [
+          { 'detail': '' }
+        ]);
         
-        for (const rule of filterRules) {
-          if (rule.disabled === 'true' || rule.disabled === true) {
-            disabledRules++;
-          } else {
-            activeRules++;
+        if (Array.isArray(filterRules)) {
+          // Đếm số lượng luật đang kích hoạt và bị vô hiệu hóa
+          let activeRules = 0;
+          let disabledRules = 0;
+          let dropRules = 0;
+          let rejectRules = 0;
+          let acceptRules = 0;
+          
+          // Phân tích dữ liệu chi tiết về các luật
+          for (const rule of filterRules) {
+            console.log(`Filter rule:`, rule);
+            
+            if (rule.disabled === 'true' || rule.disabled === true) {
+              disabledRules++;
+            } else {
+              activeRules++;
+              
+              // Phân loại theo action
+              if (rule.action === 'drop') {
+                dropRules++;
+              } else if (rule.action === 'reject') {
+                rejectRules++;
+              } else if (rule.action === 'accept') {
+                acceptRules++;
+              }
+            }
           }
+          
+          console.log(`Device ${deviceId} has ${activeRules} active and ${disabledRules} disabled firewall filter rules`);
+          console.log(`Actions breakdown: ${acceptRules} accept, ${dropRules} drop, ${rejectRules} reject`);
+          
+          // Nếu có interface cho security trong ứng dụng, có thể gửi dữ liệu tổng hợp về
+          // storage.updateFirewallStats(deviceId, {
+          //   activeFilterRules: activeRules,
+          //   disabledFilterRules: disabledRules,
+          //   dropRules,
+          //   rejectRules,
+          //   acceptRules
+          // });
         }
-        
-        console.log(`Device ${deviceId} has ${activeRules} active and ${disabledRules} disabled firewall filter rules`);
+      } catch (filterError) {
+        console.warn(`Error collecting filter rules:`, filterError);
       }
       
-      // Thu thập luật tường lửa từ nat
-      const natRules = await client.executeCommand('/ip/firewall/nat/print');
-      
-      if (Array.isArray(natRules)) {
-        // Đếm số lượng luật NAT đang kích hoạt và bị vô hiệu hóa
-        let activeNatRules = 0;
-        let disabledNatRules = 0;
+      // Thu thập luật tường lửa từ nat chi tiết
+      try {
+        const natRules = await client.executeCommand('/ip/firewall/nat/print', [
+          { 'detail': '' }
+        ]);
         
-        for (const rule of natRules) {
-          if (rule.disabled === 'true' || rule.disabled === true) {
-            disabledNatRules++;
-          } else {
-            activeNatRules++;
+        if (Array.isArray(natRules)) {
+          // Đếm số lượng luật NAT đang kích hoạt và bị vô hiệu hóa
+          let activeNatRules = 0;
+          let disabledNatRules = 0;
+          let dstnatRules = 0;
+          let srcnatRules = 0;
+          let masqueradeRules = 0;
+          
+          for (const rule of natRules) {
+            console.log(`NAT rule:`, rule);
+            
+            if (rule.disabled === 'true' || rule.disabled === true) {
+              disabledNatRules++;
+            } else {
+              activeNatRules++;
+              
+              // Phân loại theo chain
+              if (rule.chain === 'dstnat') {
+                dstnatRules++;
+              } else if (rule.chain === 'srcnat') {
+                srcnatRules++;
+                
+                // Kiểm tra nếu là masquerade
+                if (rule.action === 'masquerade') {
+                  masqueradeRules++;
+                }
+              }
+            }
+          }
+          
+          console.log(`Device ${deviceId} has ${activeNatRules} active and ${disabledNatRules} disabled firewall NAT rules`);
+          console.log(`NAT breakdown: ${dstnatRules} DSTNAT, ${srcnatRules} SRCNAT (${masqueradeRules} masquerade)`);
+        }
+      } catch (natError) {
+        console.warn(`Error collecting NAT rules:`, natError);
+      }
+      
+      // Thu thập thông tin về Address List
+      try {
+        const addressLists = await client.executeCommand('/ip/firewall/address-list/print');
+        
+        if (Array.isArray(addressLists)) {
+          // Nhóm theo danh sách và đếm
+          const listCounts = new Map<string, number>();
+          
+          for (const entry of addressLists) {
+            const listName = entry.list || 'unknown';
+            listCounts.set(listName, (listCounts.get(listName) || 0) + 1);
+          }
+          
+          // Hiển thị thông tin
+          console.log(`Address list statistics:`);
+          for (const [list, count] of listCounts.entries()) {
+            console.log(`- ${list}: ${count} entries`);
           }
         }
+      } catch (addrError) {
+        console.warn(`Error collecting address lists:`, addrError);
+      }
+      
+      // Thu thập thông tin về Connection Tracking
+      try {
+        const connections = await client.executeCommand('/ip/firewall/connection/print', [
+          { 'count-only': '' }
+        ]);
         
-        console.log(`Device ${deviceId} has ${activeNatRules} active and ${disabledNatRules} disabled firewall NAT rules`);
+        console.log(`Active connections:`, connections);
+        
+        // Lấy thống kê chi tiết về kết nối
+        const connectionStats = await client.executeCommand('/ip/firewall/connection/print', [
+          { 'stats': '' }
+        ]);
+        
+        console.log(`Connection statistics:`, connectionStats);
+      } catch (connError) {
+        console.warn(`Error collecting connection stats:`, connError);
       }
       
     } catch (error) {
@@ -776,45 +961,213 @@ export class MikrotikService {
     }
     
     try {
-      // Thu thập thông tin VPN PPTP
+      console.log(`Collecting VPN connections for device ${deviceId}...`);
+      
+      // Thu thập thông tin cấu hình VPN
+      let vpnStats = {
+        totalActive: 0,
+        pptp: {
+          active: 0,
+          configured: 0,
+          details: [] as any[]
+        },
+        l2tp: {
+          active: 0,
+          configured: 0,
+          details: [] as any[]
+        },
+        sstp: {
+          active: 0,
+          configured: 0,
+          details: [] as any[]
+        },
+        ovpn: {
+          active: 0,
+          configured: 0,
+          details: [] as any[]
+        }
+      };
+      
+      // Kiểm tra cấu hình PPTP
       try {
-        const pptpConns = await client.executeCommand('/interface/pptp-server/print');
-        if (Array.isArray(pptpConns)) {
-          console.log(`Device ${deviceId} has ${pptpConns.length} PPTP server connections`);
+        // Lấy thông tin cấu hình PPTP server
+        const pptpConfig = await client.executeCommand('/interface/pptp-server/server/print');
+        if (Array.isArray(pptpConfig)) {
+          console.log(`PPTP server configuration:`, pptpConfig);
+          
+          // Kiểm tra xem PPTP server có được kích hoạt không
+          const pptpEnabled = pptpConfig.length > 0 && pptpConfig[0].enabled === 'true';
+          console.log(`PPTP server enabled: ${pptpEnabled}`);
+          
+          if (pptpEnabled) {
+            // Lấy danh sách kết nối PPTP hiện tại
+            const pptpConns = await client.executeCommand('/interface/pptp-server/print', [
+              { 'detail': '' }
+            ]);
+            
+            if (Array.isArray(pptpConns)) {
+              vpnStats.pptp.active = pptpConns.length;
+              vpnStats.pptp.details = pptpConns;
+              vpnStats.totalActive += pptpConns.length;
+              
+              console.log(`Device ${deviceId} has ${pptpConns.length} PPTP server connections`);
+              pptpConns.forEach((conn, idx) => {
+                console.log(`PPTP connection ${idx + 1}:`, conn);
+              });
+            }
+            
+            // Lấy danh sách tài khoản PPTP
+            try {
+              const pptpSecrets = await client.executeCommand('/ppp/secret/print', [
+                { 'where': 'service=pptp' }
+              ]);
+              
+              if (Array.isArray(pptpSecrets)) {
+                vpnStats.pptp.configured = pptpSecrets.length;
+                console.log(`Device ${deviceId} has ${pptpSecrets.length} PPTP accounts configured`);
+              }
+            } catch (secretErr) {
+              console.warn(`Error getting PPTP secrets:`, secretErr);
+            }
+          }
         }
       } catch (error) {
-        console.warn(`Error collecting PPTP server connections for device ${deviceId}:`, error);
+        console.warn(`Error collecting PPTP server info for device ${deviceId}:`, error);
       }
       
-      // Thu thập thông tin VPN L2TP
+      // Kiểm tra cấu hình L2TP
       try {
-        const l2tpConns = await client.executeCommand('/interface/l2tp-server/print');
-        if (Array.isArray(l2tpConns)) {
-          console.log(`Device ${deviceId} has ${l2tpConns.length} L2TP server connections`);
+        // Lấy thông tin cấu hình L2TP server
+        const l2tpConfig = await client.executeCommand('/interface/l2tp-server/server/print');
+        if (Array.isArray(l2tpConfig)) {
+          console.log(`L2TP server configuration:`, l2tpConfig);
+          
+          // Kiểm tra xem L2TP server có được kích hoạt không
+          const l2tpEnabled = l2tpConfig.length > 0 && l2tpConfig[0].enabled === 'true';
+          console.log(`L2TP server enabled: ${l2tpEnabled}`);
+          
+          if (l2tpEnabled) {
+            // Lấy danh sách kết nối L2TP hiện tại
+            const l2tpConns = await client.executeCommand('/interface/l2tp-server/print', [
+              { 'detail': '' }
+            ]);
+            
+            if (Array.isArray(l2tpConns)) {
+              vpnStats.l2tp.active = l2tpConns.length;
+              vpnStats.l2tp.details = l2tpConns;
+              vpnStats.totalActive += l2tpConns.length;
+              
+              console.log(`Device ${deviceId} has ${l2tpConns.length} L2TP server connections`);
+              l2tpConns.forEach((conn, idx) => {
+                console.log(`L2TP connection ${idx + 1}:`, conn);
+              });
+            }
+            
+            // Lấy danh sách tài khoản L2TP
+            try {
+              const l2tpSecrets = await client.executeCommand('/ppp/secret/print', [
+                { 'where': 'service=l2tp' }
+              ]);
+              
+              if (Array.isArray(l2tpSecrets)) {
+                vpnStats.l2tp.configured = l2tpSecrets.length;
+                console.log(`Device ${deviceId} has ${l2tpSecrets.length} L2TP accounts configured`);
+              }
+            } catch (secretErr) {
+              console.warn(`Error getting L2TP secrets:`, secretErr);
+            }
+          }
         }
       } catch (error) {
-        console.warn(`Error collecting L2TP server connections for device ${deviceId}:`, error);
+        console.warn(`Error collecting L2TP server info for device ${deviceId}:`, error);
       }
       
-      // Thu thập thông tin VPN SSTP
+      // Kiểm tra cấu hình SSTP
       try {
-        const sstpConns = await client.executeCommand('/interface/sstp-server/print');
-        if (Array.isArray(sstpConns)) {
-          console.log(`Device ${deviceId} has ${sstpConns.length} SSTP server connections`);
+        // Lấy thông tin cấu hình SSTP server
+        const sstpConfig = await client.executeCommand('/interface/sstp-server/server/print');
+        if (Array.isArray(sstpConfig)) {
+          console.log(`SSTP server configuration:`, sstpConfig);
+          
+          // Kiểm tra xem SSTP server có được kích hoạt không
+          const sstpEnabled = sstpConfig.length > 0 && sstpConfig[0].enabled === 'true';
+          console.log(`SSTP server enabled: ${sstpEnabled}`);
+          
+          if (sstpEnabled) {
+            // Lấy danh sách kết nối SSTP hiện tại
+            const sstpConns = await client.executeCommand('/interface/sstp-server/print', [
+              { 'detail': '' }
+            ]);
+            
+            if (Array.isArray(sstpConns)) {
+              vpnStats.sstp.active = sstpConns.length;
+              vpnStats.sstp.details = sstpConns;
+              vpnStats.totalActive += sstpConns.length;
+              
+              console.log(`Device ${deviceId} has ${sstpConns.length} SSTP server connections`);
+              sstpConns.forEach((conn, idx) => {
+                console.log(`SSTP connection ${idx + 1}:`, conn);
+              });
+            }
+            
+            // Lấy danh sách tài khoản SSTP
+            try {
+              const sstpSecrets = await client.executeCommand('/ppp/secret/print', [
+                { 'where': 'service=sstp' }
+              ]);
+              
+              if (Array.isArray(sstpSecrets)) {
+                vpnStats.sstp.configured = sstpSecrets.length;
+                console.log(`Device ${deviceId} has ${sstpSecrets.length} SSTP accounts configured`);
+              }
+            } catch (secretErr) {
+              console.warn(`Error getting SSTP secrets:`, secretErr);
+            }
+          }
         }
       } catch (error) {
-        console.warn(`Error collecting SSTP server connections for device ${deviceId}:`, error);
+        console.warn(`Error collecting SSTP server info for device ${deviceId}:`, error);
       }
       
-      // Thu thập thông tin VPN OpenVPN
+      // Kiểm tra cấu hình OpenVPN
       try {
-        const ovpnConns = await client.executeCommand('/interface/ovpn-server/print');
-        if (Array.isArray(ovpnConns)) {
-          console.log(`Device ${deviceId} has ${ovpnConns.length} OpenVPN server connections`);
+        // Lấy thông tin cấu hình OpenVPN server
+        const ovpnServers = await client.executeCommand('/interface/ovpn-server/server/print');
+        if (Array.isArray(ovpnServers)) {
+          console.log(`OpenVPN server configuration:`, ovpnServers);
+          
+          // Đếm số lượng máy chủ OpenVPN được kích hoạt
+          const ovpnEnabled = ovpnServers.filter(s => s.enabled === 'true').length > 0;
+          console.log(`OpenVPN server enabled: ${ovpnEnabled}`);
+          
+          if (ovpnEnabled) {
+            // Lấy danh sách kết nối OpenVPN hiện tại
+            const ovpnConns = await client.executeCommand('/interface/ovpn-server/print', [
+              { 'detail': '' }
+            ]);
+            
+            if (Array.isArray(ovpnConns)) {
+              vpnStats.ovpn.active = ovpnConns.length;
+              vpnStats.ovpn.details = ovpnConns;
+              vpnStats.totalActive += ovpnConns.length;
+              
+              console.log(`Device ${deviceId} has ${ovpnConns.length} OpenVPN server connections`);
+              ovpnConns.forEach((conn, idx) => {
+                console.log(`OpenVPN connection ${idx + 1}:`, conn);
+              });
+            }
+          }
         }
       } catch (error) {
-        console.warn(`Error collecting OpenVPN server connections for device ${deviceId}:`, error);
+        console.warn(`Error collecting OpenVPN server info for device ${deviceId}:`, error);
       }
+      
+      // Tổng kết về các kết nối VPN
+      console.log(`VPN connection summary for device ${deviceId}:`, vpnStats);
+      console.log(`Total active VPN connections: ${vpnStats.totalActive}`);
+      
+      // Lưu cập nhật thông tin vào cơ sở dữ liệu (nếu cần)
+      // await storage.updateVpnStats(deviceId, vpnStats);
       
     } catch (error) {
       console.error(`Error collecting VPN connections for device ${deviceId}:`, error);
