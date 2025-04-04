@@ -233,95 +233,131 @@ class MikrotikClient {
     try {
       console.log(`Executing command: ${command}`);
       
-      // Format params in the way RouterOS API expects
-      let apiParams: Record<string, any> = {};
-      if (params.length > 0 && typeof params[0] === 'object') {
-        apiParams = params[0];
+      // Xử lý lệnh và tham số để gửi đến RouterOS API
+      // Chuẩn hóa đường dẫn lệnh
+      const commandPath = command.startsWith('/') ? command.substring(1) : command;
+      const pathParts = commandPath.split('/');
+      
+      // routeros-client API sử dụng các tham số riêng biệt cho mỗi lệnh
+      let queryParams: any = {};
+      // Nếu có tham số được truyền vào, sử dụng chúng
+      if (params && params.length > 0 && params[0] && typeof params[0] === 'object') {
+        queryParams = params[0];
       }
       
-      // Cố gắng thực hiện lệnh thông qua API thực
-      let result;
+      console.log(`Executing RouterOS command: ${commandPath} with params:`, queryParams);
       
+      // Thư viện routeros-client sử dụng 'Query' method để tạo và thực thi lệnh
+      // Độc lập với thuộc tính cụ thể của thư viện
+      let result;
       try {
-        // Chuẩn bị lệnh API
-        const cmdNormalized = command.startsWith('/') ? command : `/${command}`;
-        console.log(`Executing RouterOS command: ${cmdNormalized}`);
+        console.log("Using RouterOS Client Query to execute command");
         
-        // Thử sử dụng API RouterOS
-        if (this.client.api && typeof this.client.api === 'function') {
-          const api = this.client.api();
+        // Trong routeros-client, một số cách tiếp cận có thể hoạt động
+        // Lệnh phổ biến là phương thức query
+        const lastPart = pathParts[pathParts.length - 1];
+        
+        // routeros-client phiên bản 1.1.1 có thể có một giao diện khác
+        // Thử sử dụng phương thức query nếu có
+        if (typeof this.client.query === 'function') {
+          console.log("Using client.query() method");
           
-          // Tạm thời, đặt lệnh trực tiếp vào đối tượng kết quả
-          const cmdPath = cmdNormalized.split('/').filter(Boolean);
-          const resource = cmdPath.slice(0, -1).join('/');
-          const action = cmdPath[cmdPath.length - 1] || 'print';
+          // Đường dẫn là tất cả trừ phần cuối cùng nếu đó là 'print'
+          const apiPath = lastPart === 'print' 
+            ? pathParts.slice(0, -1).join('/') 
+            : pathParts.join('/');
           
-          console.log(`Trying to execute ${action} command on /${resource}`);
+          // Tùy chỉnh chế độ debug và thực hiện lệnh
+          console.log(`Executing query command on path: ${apiPath} with action: ${lastPart}`);
           
-          // Sử dụng phương thức write trực tiếp nếu có
-          if (this.client.write && typeof this.client.write === 'function') {
-            result = await this.client.write(cmdNormalized);
-          } 
-          // Nếu không có write, thử sử dụng menu
-          else if (this.client.menu && typeof this.client.menu === 'function') {
-            const menu = this.client.menu(`/${resource}`);
-            result = await menu[action]();
+          // Tạo tham số phù hợp với định dạng query
+          // Với phiên bản 1.1.1, query nhận đường dẫn và tham số
+          if (lastPart === 'print') {
+            result = await this.client.query('/' + apiPath + '/print', queryParams);
+          } else {
+            result = await this.client.query('/' + apiPath, queryParams);
           }
-          // Không có phương thức API nào - sử dụng phương pháp khác
-          else {
-            throw new Error("No suitable API method found");
-          }
-        } else {
-          throw new Error("RouterOS API method not available");
-        }
-        
-        console.log(`Command executed successfully, got actual data from device!`);
-      } catch (apiError) {
-        console.error(`Error using RouterOS API methods:`, apiError);
-        
-        // Log lỗi chi tiết để tìm nguyên nhân
-        if (this.client) {
-          console.log("Client properties:", Object.keys(this.client));
-          if (this.client.api) console.log("API available:", typeof this.client.api);
-          if (this.client.write) console.log("Write available:", typeof this.client.write);
-          if (this.client.menu) console.log("Menu available:", typeof this.client.menu);
-        }
-        
-        // Sử dụng phương pháp phổ quát: thử mọi cách có thể để lấy dữ liệu
-        console.log("Trying alternative API access methods...");
-        
-        try {
-          // Cố gắng sử dụng thuộc tính mở rộng của client object
-          const methods = Object.keys(this.client);
-          console.log("Available client methods:", methods);
+        } 
+        // Thử cách thứ hai: sử dụng phương thức write
+        else if (typeof this.client.write === 'function') {
+          console.log("Using client.write() method");
           
-          // Thử lời gọi API dựa trên lệnh và tham số
-          if (command === '/system/resource/print') {
-            if (methods.includes('system') && typeof this.client.system === 'function') {
-              const sys = this.client.system();
-              if (sys && typeof sys.resource === 'function') {
-                const res = sys.resource();
-                if (res && typeof res.print === 'function') {
-                  result = await res.print();
-                }
-              }
+          const fullPath = commandPath;
+          console.log(`Executing write command for path: ${fullPath}`);
+          
+          result = await this.client.write('/' + fullPath, queryParams);
+        }
+        // Thử cách thứ ba: sử dụng các thuộc tính của client như hàm bậc cao
+        else {
+          // Sử dụng thiết kế API của phiên bản routeros-client 1.1.1
+          // Ví dụ: client.system().resources.print()
+          console.log("Trying API path traversal for:", commandPath);
+          
+          // Phân tích đường dẫn thành các phần
+          let currentObj: any = this.client;
+          
+          // Duyệt qua các phần để lấy đối tượng API cuối cùng
+          for (let i = 0; i < pathParts.length - 1; i++) {
+            const part = pathParts[i];
+            if (typeof currentObj[part] === 'function') {
+              currentObj = currentObj[part]();
+            } else if (currentObj[part]) {
+              currentObj = currentObj[part];
+            } else {
+              throw new Error(`API path part '${part}' not found`);
             }
           }
           
-          // Nếu vẫn không có kết quả, thử phương pháp cuối cùng 
-          if (!result) {
-            throw new Error("All API methods failed");
+          // Phần cuối cùng là lệnh, thường là 'print'
+          const command = pathParts[pathParts.length - 1];
+          if (typeof currentObj[command] === 'function') {
+            result = await currentObj[command](queryParams);
+          } else {
+            throw new Error(`Command '${command}' not available`);
+          }
+        }
+        
+        console.log(`Command executed successfully!`);
+      } catch (apiError) {
+        console.error("Error executing RouterOS command:", apiError);
+        
+        // Ghi lại phương thức có sẵn trong client
+        const methods = Object.keys(this.client);
+        console.log("Available client methods:", methods);
+        
+        // Thử phương thức cuối cùng - direct API call theo cách cổ điển
+        // Trong trường hợp cấu trúc thư viện không như dự kiến
+        try {
+          // Thử phương pháp cổ điển nhất cho RouteOS API
+          console.log("Attempting basic RouteROSAPI execution");
+          
+          // Trực tiếp tạo lệnh chuẩn RouterOS API
+          const sentence = ['/' + commandPath];
+          Object.entries(queryParams || {}).forEach(([key, value]) => {
+            sentence.push(`=${key}=${value}`);
+          });
+          
+          console.log("Direct API sentence:", sentence);
+          
+          // Tạo và thực thi lệnh API RouteOS trong định dạng gốc
+          // Đây là cầu cuối cùng - hầu hết các thư viện MikroTik đều hỗ trợ điều này
+          if (typeof this.client.exec === 'function') {
+            result = await this.client.exec(sentence);
+          } else {
+            throw new Error("No suitable API method found in RouterOS client");
           }
         } catch (fallbackError) {
-          console.error("Fallback methods failed:", fallbackError);
-          throw fallbackError; // Ném lỗi để kích hoạt kết nối lại
+          console.error("All API methods failed:", fallbackError);
+          throw fallbackError;
         }
       }
       
-      // Nếu không có kết quả, khả năng rất cao là kết nối đã bị mất
+      // Kiểm tra kết quả
       if (!result) {
         throw new Error("No data received from RouterOS device");
       }
+      
+      console.log(`RouterOS API response:`, JSON.stringify(result).substring(0, 200) + '...');
       
       // Xử lý kết quả để loại bỏ giá trị undefined/null/NaN
       const processedResult = Array.isArray(result) 
