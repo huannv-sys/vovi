@@ -225,8 +225,8 @@ class MikrotikClient {
       throw new Error("Not connected to RouterOS device");
     }
     
-    // If using real connection with RouterOS client
-    if (!this.useMockData && this.client) {
+    // Mọi thiết bị đều sử dụng kết nối thực (không còn dữ liệu demo)
+    if (this.client) {
       try {
         console.log(`Executing real command: ${command}`);
         // Convert command like "/system/resource/print" to ["system", "resource", "print"]
@@ -273,8 +273,25 @@ class MikrotikClient {
             
             console.log(`Executing raw API command: ${cmdSegments.join(' ')}`);
             
-            // Sử dụng rosApi trực tiếp từ RouterOSAPI gốc
-            const result = await this.client.api().rosApi.write(cmdSegments);
+            // Sử dụng phương thức query từ API trực tiếp 
+            if (!this.client) {
+              throw new Error("RouterOS client not initialized");
+            }
+            
+            // Trích xuất đường dẫn từ lệnh để tạo thành mảng các đoạn đường dẫn
+            // Ví dụ: "/system/resource/print" => ["/system", "/resource", "/print"]
+            let path = command.split('/').filter(Boolean);
+            const lastSegment = path[path.length - 1];
+            
+            // Xác định tên phương thức dựa trên segment cuối cùng (thường là print, get, set, v.v.)
+            let methodName = 'print';
+            if (lastSegment === 'print' || lastSegment === 'get' || lastSegment === 'set') {
+              methodName = lastSegment;
+              path = path.slice(0, -1); // Bỏ segment cuối là phương thức
+            }
+            
+            // Sử dụng phương thức query() có sẵn trong API thông qua client
+            const result = await this.client.query(`/${path.join('/')}/${methodName}`).then(results => results);
             console.log(`Raw API command executed successfully`);
             
             // Xử lý kết quả để loại bỏ undefined/null/NaN
@@ -297,303 +314,9 @@ class MikrotikClient {
         this.connected = false;
         throw error;
       }
+    } else {
+      throw new Error("RouterOS client not initialized");
     }
-    
-    // For development, using mock responses that simulate real data
-    if (command === "/system/resource/print") {
-      // Get more realistic fluctuating values with better synchronization
-      const currentTime = Date.now();
-      const timeOfDay = (currentTime % (24 * 60 * 60 * 1000)) / (24 * 60 * 60 * 1000); // 0-1 representing time of day
-      
-      // CPU load follows a more realistic pattern based on time of day
-      // Morning/evening peaks, lower at night
-      const timeComponent = Math.sin(timeOfDay * 2 * Math.PI) * 15;
-      const baseLoad = 30 + timeComponent; // Base CPU load varies by time of day
-      
-      // Add small variations for realism
-      const shortCycle = Math.sin(currentTime / 60000) * 5; // 1-minute cycle
-      const mediumCycle = Math.sin(currentTime / 300000) * 8; // 5-minute cycle
-      
-      // Random component for spikes/variation
-      const randomComponent = Math.random() * 10 - 5;
-      
-      // Calculate CPU load with constraints
-      let cpuLoad = baseLoad + shortCycle + mediumCycle + randomComponent;
-      cpuLoad = Math.max(5, Math.min(95, cpuLoad)); // Keep between 5% and 95%
-      
-      // Memory usage correlates somewhat with CPU but has its own pattern
-      const memUsageBase = 0.4 + timeComponent/100; // 40% base + time component
-      const memRandom = Math.random() * 0.1 - 0.05; // +/- 5%
-      const memUsage = Math.max(0.1, Math.min(0.9, memUsageBase + memRandom));
-      
-      const totalMem = 4 * 1024 * 1024 * 1024; // 4GB
-      
-      // Temperature correlates with CPU load but changes more slowly
-      const tempBase = 40 + (cpuLoad / 100) * 15;
-      const tempNoise = Math.sin(currentTime / 600000) * 2; // 10-minute cycle
-      const temperature = Math.floor(tempBase + tempNoise);
-      
-      // Calculate uptime from system start (increasing realistically)
-      const systemStartTime = new Date('2025-03-29T00:00:00').getTime(); // Example start date
-      const uptimeMs = currentTime - systemStartTime;
-      const uptimeDays = uptimeMs / (1000 * 60 * 60 * 24);
-      const uptimeHours = (uptimeDays % 1) * 24;
-      const uptimeMinutes = (uptimeHours % 1) * 60;
-      const uptimeFormatted = `${Math.floor(uptimeDays)}d ${Math.floor(uptimeHours)}h ${Math.floor(uptimeMinutes)}m`;
-      
-      return {
-        "uptime": uptimeFormatted,
-        "cpu-load": Math.floor(cpuLoad),
-        "memory-usage": Math.floor(memUsage * totalMem),
-        "total-memory": totalMem,
-        "cpu-count": 2,
-        "cpu-frequency": 1400,
-        "cpu-model": "Dual-Core 88F6820",
-        "board-name": "RouterOS CRS309-1G-8S+",
-        "version": "7.8 (stable)",
-        "factory-software": "7.16.2",
-        "temperature": temperature,
-        "serial-number": "AC43086D277B",
-      };
-    }
-    
-    if (command === "/interface/print") {
-      // Generate more realistic traffic that synchronizes between calls
-      const currentTime = Date.now();
-      const timeBase = Math.floor(currentTime / 10000); // Update every 10 seconds
-      
-      // Store traffic pattern seeds to maintain consistency between polling intervals
-      const interfaceSeeds = [
-        { id: 1, name: "ether1-gateway", rxBase: 48013312, txBase: 4803481, pattern: "internet", comment: "Gateway" },
-        { id: 2, name: "ether2-office", rxBase: 37360025, txBase: 13493452, pattern: "office", comment: "Office Network" },
-        { id: 3, name: "ether3-servers", rxBase: 128849017, txBase: 91750400, pattern: "server", comment: "Server Network" },
-        { id: 4, name: "ether4-wifi", rxBase: 11200000, txBase: 4803481, pattern: "wifi", comment: "WiFi Network" },
-        { id: 5, name: "ether5-guest", rxBase: 57306112, txBase: 27086848, pattern: "guest", comment: "Guest Network" },
-        { id: 6, name: "wlan1", rxBase: 15360025, txBase: 9493452, pattern: "wifi", comment: "Main WiFi" },
-        { id: 7, name: "wlan2", rxBase: 7892312, txBase: 3256891, pattern: "wifi", comment: "5GHz WiFi" }
-      ];
-      
-      // Generate realistic traffic with time-based patterns that are consistent between polls
-      const interfaces = interfaceSeeds.map(iface => {
-        // Apply different traffic patterns based on interface type
-        let rxMultiplier = 1.0;
-        let txMultiplier = 1.0;
-        
-        const hourOfDay = (new Date().getHours() + new Date().getMinutes() / 60) / 24;
-        const dayFactor = Math.sin(hourOfDay * 2 * Math.PI); // Daily cycle
-        
-        // Interface-specific patterns
-        switch(iface.pattern) {
-          case "internet":
-            // Internet gateway has higher morning/evening peaks
-            rxMultiplier = 1.0 + 0.5 * Math.abs(dayFactor) + 0.1 * Math.sin(timeBase / 36 + iface.id);
-            txMultiplier = 1.0 + 0.3 * Math.abs(dayFactor) + 0.1 * Math.cos(timeBase / 24 + iface.id);
-            break;
-          case "office":
-            // Office network: busy during work hours, quiet at night
-            rxMultiplier = 1.0 + 0.7 * (dayFactor > 0 ? dayFactor : 0) + 0.15 * Math.sin(timeBase / 30);
-            txMultiplier = 1.0 + 0.4 * (dayFactor > 0 ? dayFactor : 0) + 0.12 * Math.cos(timeBase / 40);
-            break;
-          case "server":
-            // Servers: more constant traffic with periodic spikes for backups/updates
-            rxMultiplier = 1.0 + 0.2 * Math.abs(dayFactor) + 0.4 * (Math.sin(timeBase / 180) > 0.8 ? Math.sin(timeBase / 180) : 0);
-            txMultiplier = 1.0 + 0.2 * Math.abs(dayFactor) + 0.5 * (Math.cos(timeBase / 200) > 0.85 ? Math.cos(timeBase / 200) : 0);
-            break;
-          case "wifi":
-            // WiFi: peaks during evening, moderate during day, low at night
-            rxMultiplier = 1.0 + 0.8 * (dayFactor < 0 ? Math.abs(dayFactor) : 0.5 * dayFactor) + 0.2 * Math.sin(timeBase / 45);
-            txMultiplier = 1.0 + 0.6 * (dayFactor < 0 ? Math.abs(dayFactor) : 0.5 * dayFactor) + 0.15 * Math.cos(timeBase / 50);
-            break;
-          case "guest":
-            // Guest network: random patterns, less predictable
-            rxMultiplier = 1.0 + 0.4 * Math.abs(dayFactor) + 0.4 * Math.sin(timeBase / 22 + iface.id * 2);
-            txMultiplier = 1.0 + 0.3 * Math.abs(dayFactor) + 0.3 * Math.cos(timeBase / 18 + iface.id * 2);
-            break;
-        }
-        
-        // Add progressive growth to traffic counters to simulate accumulating traffic
-        // These grow continuously but with variations in rate
-        const timeScaleFactor = currentTime / (1000 * 60 * 60); // Hours since epoch
-        const progressiveGrowth = 1 + timeScaleFactor * 0.01; // Grows slowly over time
-        
-        // Calculate final traffic values with accumulated growth
-        const rxTraffic = Math.floor(iface.rxBase * rxMultiplier * progressiveGrowth * (1 + (timeBase % 1000) / 10000));
-        const txTraffic = Math.floor(iface.txBase * txMultiplier * progressiveGrowth * (1 + (timeBase % 800) / 8000));
-        
-        const type = iface.name.startsWith('wlan') ? 'wlan' : 'ether';
-        
-        return {
-          ".id": `*${iface.id}`,
-          "name": iface.name,
-          "type": type,
-          "mtu": 1500,
-          "actual-mtu": 1500,
-          "mac-address": `E4:8D:8C:26:A4:0${iface.id}`,
-          "running": (iface.name !== "ether4-wifi" && iface.name !== "wlan2") || Math.random() > 0.1, // interfaces occasionally go down
-          "disabled": false,
-          "comment": iface.comment,
-          "link-downs": iface.name === "ether4-wifi" ? Math.floor(timeBase / 800) % 5 : 0, // WiFi interface has occasional link downs
-          "rx-byte": rxTraffic,
-          "tx-byte": txTraffic
-        };
-      });
-      
-      return interfaces;
-    }
-    
-    if (command === "/system/health/print") {
-      return {
-        "temperature": 48,
-        "voltage": 24,
-        "current": 0.4,
-        "power-consumption": 9.6
-      };
-    }
-    
-    // CAPsMAN information - for CAPsMAN controller capabilities
-    if (command === "/caps-man/interface/print") {
-      // Only return data if device is configured as CAPsMAN
-      if (Math.random() > 0.5) { // Simulate that the device has CAPsMAN enabled
-        return [
-          {
-            ".id": "*1",
-            "name": "cap1",
-            "mac-address": "E4:8D:8C:26:B1:01",
-            "master-interface": "none",
-            "disabled": false
-          },
-          {
-            ".id": "*2",
-            "name": "cap2",
-            "mac-address": "E4:8D:8C:26:B1:02",
-            "master-interface": "none",
-            "disabled": false
-          }
-        ];
-      }
-      return [];
-    }
-    
-    // CAPsMAN remote AP list - controlled access points
-    if (command === "/caps-man/remote-cap/print") {
-      // Only return data if device is configured as CAPsMAN
-      if (Math.random() > 0.5) { // Simulate that the device has CAPsMAN enabled and APs connected
-        return [
-          {
-            ".id": "*1",
-            "identity": "AP-Floor1",
-            "address": "192.168.1.101",
-            "mac-address": "E4:8D:8C:27:C1:01",
-            "board": "RB951G-2HnD",
-            "version": "6.48.6",
-            "state": "running",
-            "radio-mac": "E4:8D:8C:27:C1:02",
-            "uptime": "11h45m20s",
-            "radio-name": "Mikrotik-Floor1"
-          },
-          {
-            ".id": "*2",
-            "identity": "AP-Floor2",
-            "address": "192.168.1.102",
-            "mac-address": "E4:8D:8C:27:C2:01",
-            "board": "RB951G-2HnD",
-            "version": "6.48.6",
-            "state": "running",
-            "radio-mac": "E4:8D:8C:27:C2:02",
-            "uptime": "23h56m10s",
-            "radio-name": "Mikrotik-Floor2"
-          }
-        ];
-      }
-      return [];
-    }
-    
-    // Wireless information - for local device wireless
-    if (command === "/interface/wireless/print") {
-      return [
-        {
-          ".id": "*1",
-          "name": "wlan1",
-          "default-name": "wlan1",
-          "mac-address": "E4:8D:8C:26:B1:01",
-          "arp": "enabled",
-          "disable-running-check": false,
-          "disabled": false,
-          "ssid": "MikroTik-Office",
-          "mode": "ap-bridge",
-          "band": "2ghz-b/g/n",
-          "frequency": "2437",
-          "channel-width": "20/40mhz-abobe",
-          "scan-list": "default",
-          "wireless-protocol": "802.11",
-          "rate-set": "default",
-          "noise-floor": -98,
-          "tx-power": 20,
-          "rx-chains": "0,1",
-          "tx-chains": "0,1",
-          "running": true
-        },
-        {
-          ".id": "*2",
-          "name": "wlan2",
-          "default-name": "wlan2",
-          "mac-address": "E4:8D:8C:26:B1:02",
-          "arp": "enabled",
-          "disable-running-check": false,
-          "disabled": false,
-          "ssid": "MikroTik-Office-5G",
-          "mode": "ap-bridge",
-          "band": "5ghz-a/n/ac",
-          "frequency": "5240",
-          "channel-width": "20/40/80mhz",
-          "scan-list": "default",
-          "wireless-protocol": "802.11",
-          "rate-set": "default",
-          "noise-floor": -105,
-          "tx-power": 20,
-          "rx-chains": "0,1",
-          "tx-chains": "0,1",
-          "running": true
-        }
-      ];
-    }
-    
-    // Wireless client connection information
-    if (command === "/interface/wireless/registration-table/print") {
-      const currentTime = Date.now();
-      const hourOfDay = (new Date().getHours() + new Date().getMinutes() / 60) / 24;
-      const dayFactor = Math.sin(hourOfDay * 2 * Math.PI); // Daily cycle
-      
-      // Generate number of clients based on time of day (more in office hours/evening)
-      const clientBase = 8; // Base number of clients
-      const timeVariation = Math.floor(10 * (dayFactor > 0 ? dayFactor : 0.3 * Math.abs(dayFactor))); // More during day/evening
-      const totalClients = clientBase + timeVariation;
-      
-      const clients = [];
-      
-      for (let i = 1; i <= totalClients; i++) {
-        const interface_name = Math.random() > 0.3 ? "wlan1" : "wlan2";
-        const signalRandom = Math.random() * 20 - 70; // Signal between -70 and -50 dBm
-        const signal = Math.floor(signalRandom);
-        
-        clients.push({
-          ".id": `*${i}`,
-          "interface": interface_name,
-          "mac-address": `${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}:${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}:${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}:${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}:${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}:${Math.floor(Math.random()*256).toString(16).padStart(2, '0')}`,
-          "ap": false,
-          "uptime": `${Math.floor(Math.random() * 12)}h${Math.floor(Math.random() * 60)}m`,
-          "signal-strength": signal,
-          "tx-rate": `${Math.floor(58 + Math.random() * 30)}Mbps`,
-          "rx-rate": `${Math.floor(65 + Math.random() * 35)}Mbps`,
-          "packets": Math.floor(1000 + Math.random() * 50000),
-          "bytes": Math.floor(100000 + Math.random() * 10000000)
-        });
-      }
-      
-      return clients;
-    }
-    
-    return {};
   }
 }
 
