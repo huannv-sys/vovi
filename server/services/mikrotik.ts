@@ -184,10 +184,10 @@ class MikrotikClient {
   }
 
   async executeCommand(command: string, params: any[] = []): Promise<any> {
-    // Trường hợp đặc biệt cho demo mode - bỏ qua kiểm tra kết nối
-    if (this.useMockData) {
-      console.log(`[DEMO MODE] Executing mock command: ${command}`);
-      // Tiếp tục xử lý dữ liệu demo không cần thiết kết nối
+    // Vô hiệu hóa demo mode hoàn toàn
+    if (false && this.useMockData) { // Điều kiện luôn sai
+      console.log(`[DEMO MODE đã bị vô hiệu] Không cho phép sử dụng dữ liệu mẫu`);
+      throw new Error("Demo mode đã bị vô hiệu hóa - chỉ cho phép kết nối thực tế");
     } else if (!this.connected) {
       throw new Error("Not connected to RouterOS device");
     }
@@ -567,15 +567,13 @@ export class MikrotikService {
       // Kiểm tra xem đang chạy trong môi trường Replit 
       const isReplit = process.env.REPL_ID || process.env.REPL_SLUG;
       // Kiểm tra xem chế độ demo có được bật cưỡng bức không
-      const forceDemoMode = process.env.FORCE_DEMO_MODE === "true";
+      const forceDemoMode = false; // Luôn tắt demo mode
       
-      // Tự động chuyển sang chế độ demo trong các trường hợp:
-      // 1. Chỉ nếu cưỡng bức chế độ demo qua biến môi trường
-      // Ghi chú: Đã loại bỏ điều kiện về IP riêng tư trong Replit để cho phép kết nối với thiết bị thực
-      if (forceDemoMode) {
-        console.log(`⚠️ DEMO MODE - Forced by environment variable - using demo data for device ${deviceId}`);
+      // Đã vô hiệu hóa chế độ demo hoàn toàn
+      if (false) { // Điều kiện này luôn sai, vô hiệu hóa toàn bộ khối mã demo mode
+        console.log(`⚠️ DEMO MODE đã bị vô hiệu hóa - chỉ sử dụng kết nối thực tế`);
         
-        // Cập nhật thiết bị để hiển thị đúng trong DEMO MODE - không báo là online
+        // Cập nhật thiết bị để hiển thị đúng - không báo là online
         await storage.updateDevice(deviceId, { 
           isOnline: false,
           lastSeen: new Date()
@@ -583,16 +581,14 @@ export class MikrotikService {
         
         // Đánh dấu là đang dùng dữ liệu demo
         const client = new MikrotikClient(device.ipAddress, device.username, device.password);
-        client.useMockData = true;
+        client.useMockData = false; // Luôn false để buộc sử dụng kết nối thực tế
         this.clients.set(deviceId, client);
-        // Vẫn cho phép client thực hiện các command nhưng không đặt trường private
-        // client.connected = true;
         
         // Thêm cảnh báo về chế độ demo
         await this.createAlert(
           deviceId,
           alertSeverity.INFO,
-          "Demo Mode Active",
+          "Demo Mode Disabled",
           `Demo mode is active for device ${device.name}. Real-time data from actual device is not available in Replit environment.`
         );
         
@@ -633,14 +629,13 @@ export class MikrotikService {
       // Nếu không thể kết nối sau khi thử tất cả các cổng
       console.error(`Failed to connect to device ${deviceId} (${device.ipAddress}) on any port`);
       
-      // Nếu không phải là địa chỉ IP riêng tư, thử chuyển sang chế độ demo
-      // Sử dụng lại biến isPrivateIP đã khai báo ở trên
-      if (!isPrivateIP) {
-        console.log(`Switching to DEMO MODE for public IP ${device.ipAddress} after failed connection attempts`);
+      // Demo mode đã bị vô hiệu hóa cho địa chỉ IP công khai - chỉ sử dụng kết nối thực tế
+      if (false && !isPrivateIP) { // Luôn trả về false để vô hiệu hóa điều kiện
+        console.log(`Không chuyển sang chế độ demo - yêu cầu kết nối thực tế`);
         
-        // Cập nhật thiết bị để hiển thị đúng trong DEMO MODE - đánh dấu là online vì chúng ta vẫn giám sát được
+        // Cập nhật thiết bị để hiển thị đúng - đánh dấu là offline vì không kết nối được
         await storage.updateDevice(deviceId, { 
-          isOnline: true,  // Đánh dấu là online trong demo mode
+          isOnline: false,
           lastSeen: new Date()
         });
         
