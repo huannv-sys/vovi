@@ -145,39 +145,8 @@ export class MemStorage implements IStorage {
     // Không tạo thiết bị mẫu nào mặc định
     // Hệ thống sẽ yêu cầu người dùng thêm thiết bị của riêng họ
     
-    // Tải dữ liệu thiết bị sẵn có
-    this.initializeDemoDevice();
-  }
-  
-  // Khởi tạo thiết bị thực
-  private initializeDemoDevice() {
-    console.log("Khởi tạo thiết bị demo...");
-    
-    // Tạo thiết bị với IP thật
-    const device: Device = {
-      id: 1,
-      name: "MikroTik Router",
-      ipAddress: "192.168.88.1",
-      username: "admin",
-      password: "password",
-      model: null,
-      serialNumber: null,
-      routerOsVersion: null,
-      firmware: null,
-      cpu: null,
-      totalMemory: null,
-      storage: null,
-      lastSeen: new Date(),
-      isOnline: false,
-      uptime: "0d 0h 0m",
-      hasCAPsMAN: false,
-      hasWireless: false
-    };
-    
-    this.devices.set(1, device);
-    this.deviceIdCounter = 2;
-    
-    console.log("Đã tạo thiết bị:", device);
+    // Tải dữ liệu thiết bị thực tế từ cơ sở dữ liệu
+    this.syncDevicesFromDB();
   }
   
   // Đồng bộ hóa thiết bị từ cơ sở dữ liệu
@@ -185,18 +154,12 @@ export class MemStorage implements IStorage {
     try {
       console.log("Đang đồng bộ thiết bị từ cơ sở dữ liệu...");
       
-      // Sử dụng truy vấn SQL trực tiếp với drizzle-orm
-      const query = "SELECT * FROM devices";
-      
-      // Sử dụng drizzle-orm thay vì pg trực tiếp
-      const { drizzle } = await import('drizzle-orm/neon-serverless');
+      // Sử dụng @neondatabase/serverless thay vì pg trực tiếp
       const { neon } = await import('@neondatabase/serverless');
+      const sql = neon(process.env.DATABASE_URL || '');
       
-      const sql = neon(process.env.DATABASE_URL!);
-      const db = drizzle(sql);
-      
-      // Sử dụng .execute() thay vì .query() để thực hiện truy vấn tùy chỉnh
-      const result = await sql.query(query);
+      // Thực hiện truy vấn SQL đơn giản
+      const result = await sql`SELECT * FROM devices`;
       
       console.log(`Đã nhận ${result.length} thiết bị từ cơ sở dữ liệu.`);
       
