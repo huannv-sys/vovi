@@ -255,20 +255,20 @@ const Dashboard = () => {
                           <td className="px-3 py-3 whitespace-nowrap">
                             <div className="text-sm text-white">
                               <div className="w-16 bg-gray-700 rounded-full h-1.5">
-                                <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${Math.round(Math.random() * 100)}%` }}></div>
+                                <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: '0%' }}></div>
                               </div>
                             </div>
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap">
                             <div className="text-sm text-white">
                               <div className="w-16 bg-gray-700 rounded-full h-1.5">
-                                <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${Math.round(Math.random() * 100)}%` }}></div>
+                                <div className="bg-green-500 h-1.5 rounded-full" style={{ width: '0%' }}></div>
                               </div>
                             </div>
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                              {Math.round(Math.random() * 3)}
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                              0
                             </span>
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
@@ -302,38 +302,9 @@ const Dashboard = () => {
               {/* Cảnh báo từ tất cả thiết bị */}
               <div className="bg-gray-800 rounded-lg shadow p-4 border border-gray-700">
                 <h2 className="text-lg font-medium text-white mb-4">Cảnh báo hệ thống</h2>
-                <div className="space-y-3">
-                  <div className="bg-gray-700 p-3 rounded">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className="w-2 h-2 rounded-full bg-yellow-500 mr-2"></div>
-                        <span className="text-sm text-white">CPU sử dụng cao</span>
-                      </div>
-                      <span className="text-xs text-gray-400">2 phút trước</span>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">MikroTik Router - Office Main (192.168.1.1)</p>
-                  </div>
-                  
-                  <div className="bg-gray-700 p-3 rounded">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className="w-2 h-2 rounded-full bg-red-500 mr-2"></div>
-                        <span className="text-sm text-white">Mất kết nối với thiết bị</span>
-                      </div>
-                      <span className="text-xs text-gray-400">15 phút trước</span>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">MikroTik Router - Branch Office (192.168.2.1)</p>
-                  </div>
-                  
-                  <div className="bg-gray-700 p-3 rounded">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        <div className="w-2 h-2 rounded-full bg-green-500 mr-2"></div>
-                        <span className="text-sm text-white">Kết nối lại thành công</span>
-                      </div>
-                      <span className="text-xs text-gray-400">30 phút trước</span>
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">MikroTik Router - Branch Office (192.168.2.1)</p>
+                <div className="flex flex-col items-center justify-center py-6">
+                  <div className="text-gray-400 text-sm">
+                    Không có cảnh báo nào
                   </div>
                 </div>
               </div>
@@ -352,40 +323,40 @@ const Dashboard = () => {
                     <div className="space-y-2">
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-xs text-gray-400">CPU</span>
-                        <span className="text-xs text-white">{Math.round(Math.random() * 100)}%</span>
+                        <span className="text-xs text-white">0%</span>
                       </div>
                       <div className="w-full bg-gray-600 rounded-full h-1">
                         <div 
                           className="bg-blue-500 h-1 rounded-full" 
-                          style={{ width: `${Math.round(Math.random() * 100)}%` }}
+                          style={{ width: '0%' }}
                         ></div>
                       </div>
                       
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-xs text-gray-400">RAM</span>
-                        <span className="text-xs text-white">{Math.round(Math.random() * 100)}%</span>
+                        <span className="text-xs text-white">0%</span>
                       </div>
                       <div className="w-full bg-gray-600 rounded-full h-1">
                         <div 
                           className="bg-green-500 h-1 rounded-full" 
-                          style={{ width: `${Math.round(Math.random() * 100)}%` }}
+                          style={{ width: '0%' }}
                         ></div>
                       </div>
                       
                       <div className="flex justify-between items-center mb-1">
                         <span className="text-xs text-gray-400">Disk</span>
-                        <span className="text-xs text-white">{Math.round(Math.random() * 100)}%</span>
+                        <span className="text-xs text-white">0%</span>
                       </div>
                       <div className="w-full bg-gray-600 rounded-full h-1">
                         <div 
                           className="bg-yellow-500 h-1 rounded-full" 
-                          style={{ width: `${Math.round(Math.random() * 100)}%` }}
+                          style={{ width: '0%' }}
                         ></div>
                       </div>
                       
                       <div className="flex justify-between items-center pt-2">
-                        <span className="text-xs text-gray-400">Up: {Math.round(Math.random() * 100)} Mbps</span>
-                        <span className="text-xs text-gray-400">Down: {Math.round(Math.random() * 1000)} Mbps</span>
+                        <span className="text-xs text-gray-400">Up: 0 Mbps</span>
+                        <span className="text-xs text-gray-400">Down: 0 Mbps</span>
                       </div>
                     </div>
                   </div>
