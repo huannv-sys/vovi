@@ -239,72 +239,88 @@ class MikrotikClient {
         apiParams = params[0];
       }
       
-      // Vì đang có vấn đề với API client, chúng ta sẽ trả về dữ liệu mặc định theo loại lệnh
+      // Cố gắng thực hiện lệnh thông qua API thực
       let result;
       
-      // Dựa vào loại lệnh để tạo cấu trúc dữ liệu phù hợp
-      if (command === '/system/resource/print') {
-        result = {
-          "board-name": "MikroTik Router",
-          "cpu-load": 15,
-          "memory-usage": 128*1024*1024, // Giả định 128MB sử dụng
-          "total-memory": 256*1024*1024, // Giả định 256MB tổng
-          "uptime": "1d2h3m4s",
-          "version": "6.48.6",
-          "factory-software": "6.48.6",
-          "cpu-model": "ARM"
-        };
-      } else if (command.includes('/interface/print')) {
-        result = [
-          {
-            "name": "ether1",
-            "type": "ether",
-            "mac-address": "B8:69:F4:7E:3E:F8",
-            "mtu": 1500,
-            "running": true,
-            "disabled": false,
-            "comment": "WAN",
-            "rx-byte": 1024000,
-            "tx-byte": 512000,
-            "link-downs": 0
-          },
-          {
-            "name": "ether2",
-            "type": "ether",
-            "mac-address": "B8:69:F4:7E:3E:F9",
-            "mtu": 1500,
-            "running": false,
-            "disabled": false,
-            "comment": "LAN",
-            "rx-byte": 256000,
-            "tx-byte": 128000,
-            "link-downs": 2
+      try {
+        // Chuẩn bị lệnh API
+        const cmdNormalized = command.startsWith('/') ? command : `/${command}`;
+        console.log(`Executing RouterOS command: ${cmdNormalized}`);
+        
+        // Thử sử dụng API RouterOS
+        if (this.client.api && typeof this.client.api === 'function') {
+          const api = this.client.api();
+          
+          // Tạm thời, đặt lệnh trực tiếp vào đối tượng kết quả
+          const cmdPath = cmdNormalized.split('/').filter(Boolean);
+          const resource = cmdPath.slice(0, -1).join('/');
+          const action = cmdPath[cmdPath.length - 1] || 'print';
+          
+          console.log(`Trying to execute ${action} command on /${resource}`);
+          
+          // Sử dụng phương thức write trực tiếp nếu có
+          if (this.client.write && typeof this.client.write === 'function') {
+            result = await this.client.write(cmdNormalized);
+          } 
+          // Nếu không có write, thử sử dụng menu
+          else if (this.client.menu && typeof this.client.menu === 'function') {
+            const menu = this.client.menu(`/${resource}`);
+            result = await menu[action]();
           }
-        ];
-      } else if (command.includes('/ip/firewall/filter/print')) {
-        result = [
-          {
-            "chain": "input",
-            "action": "accept",
-            "protocol": "tcp",
-            "dst-port": 80,
-            "comment": "Allow HTTP"
-          },
-          {
-            "chain": "input",
-            "action": "drop",
-            "protocol": "tcp",
-            "dst-port": 23,
-            "comment": "Block Telnet"
+          // Không có phương thức API nào - sử dụng phương pháp khác
+          else {
+            throw new Error("No suitable API method found");
           }
-        ];
-      } else if (command.includes('/interface/wireless/print')) {
-        result = [];
-      } else if (command.includes('/caps-man/interface/print')) {
-        result = [];
-      } else {
-        // Mặc định trả về mảng rỗng cho các lệnh print
-        result = command.endsWith('/print') ? [] : {};
+        } else {
+          throw new Error("RouterOS API method not available");
+        }
+        
+        console.log(`Command executed successfully, got actual data from device!`);
+      } catch (apiError) {
+        console.error(`Error using RouterOS API methods:`, apiError);
+        
+        // Log lỗi chi tiết để tìm nguyên nhân
+        if (this.client) {
+          console.log("Client properties:", Object.keys(this.client));
+          if (this.client.api) console.log("API available:", typeof this.client.api);
+          if (this.client.write) console.log("Write available:", typeof this.client.write);
+          if (this.client.menu) console.log("Menu available:", typeof this.client.menu);
+        }
+        
+        // Sử dụng phương pháp phổ quát: thử mọi cách có thể để lấy dữ liệu
+        console.log("Trying alternative API access methods...");
+        
+        try {
+          // Cố gắng sử dụng thuộc tính mở rộng của client object
+          const methods = Object.keys(this.client);
+          console.log("Available client methods:", methods);
+          
+          // Thử lời gọi API dựa trên lệnh và tham số
+          if (command === '/system/resource/print') {
+            if (methods.includes('system') && typeof this.client.system === 'function') {
+              const sys = this.client.system();
+              if (sys && typeof sys.resource === 'function') {
+                const res = sys.resource();
+                if (res && typeof res.print === 'function') {
+                  result = await res.print();
+                }
+              }
+            }
+          }
+          
+          // Nếu vẫn không có kết quả, thử phương pháp cuối cùng 
+          if (!result) {
+            throw new Error("All API methods failed");
+          }
+        } catch (fallbackError) {
+          console.error("Fallback methods failed:", fallbackError);
+          throw fallbackError; // Ném lỗi để kích hoạt kết nối lại
+        }
+      }
+      
+      // Nếu không có kết quả, khả năng rất cao là kết nối đã bị mất
+      if (!result) {
+        throw new Error("No data received from RouterOS device");
       }
       
       // Xử lý kết quả để loại bỏ giá trị undefined/null/NaN
