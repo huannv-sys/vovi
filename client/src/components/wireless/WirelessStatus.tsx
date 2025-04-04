@@ -101,7 +101,7 @@ export default function WirelessStatus({ deviceId }: WirelessStatusProps) {
             {Array.isArray(wirelessInterfaces) && wirelessInterfaces.map((wInterface: any) => (
               <TableRow key={wInterface.id}>
                 <TableCell className="font-medium">{wInterface.name}</TableCell>
-                <TableCell>{wInterface.ssid || 'N/A'}</TableCell>
+                <TableCell>{wInterface.ssid || 'Chưa có thông tin'}</TableCell>
                 <TableCell>{formatBand(wInterface.band)}</TableCell>
                 <TableCell>
                   {wInterface.isActive ? 
@@ -124,7 +124,7 @@ export default function WirelessStatus({ deviceId }: WirelessStatusProps) {
 }
 
 function formatBand(band: string | null) {
-  if (!band) return 'N/A';
+  if (!band) return 'Chưa có thông tin';
   
   switch (band) {
     case '2ghz-b/g/n':

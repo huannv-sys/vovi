@@ -48,43 +48,43 @@ const DeviceInfo: React.FC<DeviceInfoProps> = ({ deviceId }) => {
             <div className="flex">
               <div className="w-1/3 text-sm text-slate-400">Model</div>
               <div className="w-2/3 text-sm font-medium text-white overflow-hidden text-ellipsis">
-                {deviceData.model || 'Unknown'}
+                {deviceData.model || 'Chưa có thông tin'}
               </div>
             </div>
             <div className="flex">
               <div className="w-1/3 text-sm text-slate-400">Serial Number</div>
               <div className="w-2/3 text-sm font-medium text-white overflow-hidden text-ellipsis">
-                {deviceData.serialNumber || 'Unknown'}
+                {deviceData.serialNumber || 'Chưa có thông tin'}
               </div>
             </div>
             <div className="flex">
               <div className="w-1/3 text-sm text-slate-400">RouterOS Version</div>
               <div className="w-2/3 text-sm font-medium text-white overflow-hidden text-ellipsis">
-                {deviceData.routerOsVersion || 'Unknown'}
+                {deviceData.routerOsVersion || 'Chưa có thông tin'}
               </div>
             </div>
             <div className="flex">
               <div className="w-1/3 text-sm text-slate-400">Firmware</div>
               <div className="w-2/3 text-sm font-medium text-white overflow-hidden text-ellipsis">
-                {deviceData.firmware || 'Unknown'}
+                {deviceData.firmware || 'Chưa có thông tin'}
               </div>
             </div>
             <div className="flex">
               <div className="w-1/3 text-sm text-slate-400">CPU</div>
               <div className="w-2/3 text-sm font-medium text-white overflow-hidden text-ellipsis">
-                {deviceData.cpu || 'Unknown'}
+                {deviceData.cpu || 'Chưa có thông tin'}
               </div>
             </div>
             <div className="flex">
               <div className="w-1/3 text-sm text-slate-400">Total Memory</div>
               <div className="w-2/3 text-sm font-medium text-white overflow-hidden text-ellipsis">
-                {deviceData.totalMemory || 'Unknown'}
+                {deviceData.totalMemory || 'Chưa có thông tin'}
               </div>
             </div>
             <div className="flex">
               <div className="w-1/3 text-sm text-slate-400">Storage</div>
               <div className="w-2/3 text-sm font-medium text-white overflow-hidden text-ellipsis">
-                {deviceData.storage || 'Unknown'}
+                {deviceData.storage || 'Chưa có thông tin'}
               </div>
             </div>
             <div className="flex">

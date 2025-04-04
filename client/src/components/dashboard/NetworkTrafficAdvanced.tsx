@@ -44,8 +44,8 @@ const formatBytes = (bytes: number, decimals = 2) => {
 };
 
 // Định dạng Mbps với độ chính xác cho trước
-const formatMbps = (mbps: number, decimals = 2) => {
-  if (isNaN(mbps)) return '0.00 Mbps';
+const formatMbps = (mbps: number | undefined | null, decimals = 2) => {
+  if (mbps === undefined || mbps === null || isNaN(mbps)) return '0.00 Mbps';
   return mbps.toFixed(decimals) + ' Mbps';
 };
 
@@ -459,7 +459,7 @@ const NetworkTrafficAdvanced: React.FC<NetworkTrafficAdvancedProps> = ({ deviceI
           <div className="p-3 h-[280px]">
             {trafficData.length === 0 ? (
               <div className="flex items-center justify-center h-full text-gray-400">
-                No traffic data available
+                Không có dữ liệu lưu lượng mạng
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">

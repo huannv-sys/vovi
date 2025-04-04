@@ -44,8 +44,8 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
                 </span>
               </div>
               <div className="flex items-center text-xs text-gray-500">
-                <span className="mr-3">TX: {formatBytes(iface.txBytes)}</span>
-                <span>RX: {formatBytes(iface.rxBytes)}</span>
+                <span className="mr-3">TX: {iface.txBytes != null ? formatBytes(iface.txBytes) : '0 B'}</span>
+                <span>RX: {iface.rxBytes != null ? formatBytes(iface.rxBytes) : '0 B'}</span>
               </div>
             </div>
           ))
