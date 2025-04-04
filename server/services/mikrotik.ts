@@ -19,7 +19,7 @@ class MikrotikClient {
   private username: string;
   private password: string;
   private client: rosjs.RouterOSClient | null = null;
-  public useMockData: boolean = false; // Tắt dữ liệu mẫu, sử dụng dữ liệu thực từ thiết bị
+  public useMockData: boolean = false; // Không bao giờ sử dụng dữ liệu mẫu, luôn kết nối thiết bị thật
   private port: number = 8728; // Cổng API mặc định của RouterOS
   
   constructor(ipAddress: string, username: string, password: string) {
@@ -184,11 +184,8 @@ class MikrotikClient {
   }
 
   async executeCommand(command: string, params: any[] = []): Promise<any> {
-    // Vô hiệu hóa demo mode hoàn toàn
-    if (false && this.useMockData) { // Điều kiện luôn sai
-      console.log(`[DEMO MODE đã bị vô hiệu] Không cho phép sử dụng dữ liệu mẫu`);
-      throw new Error("Demo mode đã bị vô hiệu hóa - chỉ cho phép kết nối thực tế");
-    } else if (!this.connected) {
+    // Chỉ cho phép thực thi lệnh khi đã kết nối thành công
+    if (!this.connected) {
       throw new Error("Not connected to RouterOS device");
     }
     

@@ -105,40 +105,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
       const metrics = await storage.getMetrics(deviceId, limit);
       
-      // Thêm một số metrics mẫu nếu không có
-      if (!metrics || metrics.length === 0) {
-        console.log("Không có metrics cho thiết bị", deviceId, "- tạo metrics mẫu");
-        
-        // Tạo dữ liệu ngẫu nhiên giả lập
-        const now = new Date();
-        const sampleMetrics = [];
-        
-        for (let i = 0; i < 50; i++) {
-          const timestamp = new Date(now.getTime() - i * 10000); // 10 giây mỗi điểm
-          const randomCpu = 20 + Math.random() * 40; // CPU từ 20-60%
-          const randomMem = 30 + Math.random() * 50; // Memory từ 30-80%
-          const randomDownload = 500000 + Math.random() * 1500000; // Download 0.5MB - 2MB
-          const randomUpload = 200000 + Math.random() * 800000; // Upload 0.2MB - 1MB
-          
-          sampleMetrics.push({
-            id: i + 1,
-            deviceId,
-            timestamp: timestamp.toISOString(),
-            cpuUsage: Math.round(randomCpu),
-            memoryUsage: Math.round(randomMem),
-            totalMemory: 4 * 1024 * 1024 * 1024, // 4GB
-            temperature: 35 + Math.random() * 10,
-            downloadBandwidth: Math.round(randomDownload),
-            uploadBandwidth: Math.round(randomUpload)
-          });
-        }
-        
-        // Gửi về metrics mẫu
-        res.json(sampleMetrics);
-        return;
-      }
-      
-      res.json(metrics);
+      // Trả về metrics thực tế từ cơ sở dữ liệu - không sử dụng dữ liệu mẫu
+      res.json(metrics || []);
     } catch (error) {
       console.error("Lỗi khi lấy metrics:", error);
       res.status(500).json({ message: "Failed to fetch metrics" });
@@ -195,74 +163,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let capsmanAPs = await storage.getCapsmanAPs(deviceId);
       
-      // Nếu không có CAPsMAN APs, tạo dữ liệu mẫu
-      if (!capsmanAPs || capsmanAPs.length === 0) {
-        console.log("Không có CAPsMAN APs cho thiết bị", deviceId, "- tạo dữ liệu mẫu");
-        
-        // Tạo 3 APs mẫu
-        const sampleAPs = [
-          {
-            id: 1,
-            deviceId,
-            name: "AP1-Floor1",
-            identity: "MikroTik AP Floor 1",
-            ipAddress: "192.168.1.101",
-            macAddress: "AA:BB:CC:11:22:33",
-            radioMac: "AA:BB:CC:11:22:34",
-            radioName: "wlan1-floor1",
-            state: "running",
-            clients: 8,
-            uptime: "2d 14h 35m",
-            model: "cAP ac",
-            version: "6.48.4",
-            serialNumber: "9A284D32EF01",
-            lastSeen: new Date().toISOString()
-          },
-          {
-            id: 2,
-            deviceId,
-            name: "AP2-Floor2",
-            identity: "MikroTik AP Floor 2",
-            ipAddress: "192.168.1.102",
-            macAddress: "AA:BB:CC:22:33:44",
-            radioMac: "AA:BB:CC:22:33:45",
-            radioName: "wlan1-floor2",
-            state: "running",
-            clients: 5,
-            uptime: "1d 18h 40m",
-            model: "wAP ac",
-            version: "6.48.4",
-            serialNumber: "9A284D32EF02",
-            lastSeen: new Date().toISOString()
-          },
-          {
-            id: 3,
-            deviceId,
-            name: "AP3-Outdoor",
-            identity: "MikroTik AP Outdoor",
-            ipAddress: "192.168.1.103",
-            macAddress: "AA:BB:CC:33:44:55",
-            radioMac: "AA:BB:CC:33:44:56",
-            radioName: "wlan1-outdoor",
-            state: "running",
-            clients: 3,
-            uptime: "3d 8h 15m",
-            model: "SXTsq 5 ac",
-            version: "6.48.3",
-            serialNumber: "9A284D32EF03",
-            lastSeen: new Date().toISOString()
-          }
-        ];
-        
-        // Lưu các APs mẫu vào storage
-        for (const ap of sampleAPs) {
-          await storage.createCapsmanAP(ap);
-        }
-        
-        return res.json(sampleAPs);
-      }
-      
-      res.json(capsmanAPs);
+      // Trả về dữ liệu CAPsMAN APs thực tế - không tạo dữ liệu mẫu
+      res.json(capsmanAPs || []);
     } catch (error) {
       console.error("Lỗi khi lấy CAPsMAN APs:", error);
       res.status(500).json({ message: "Failed to fetch CAPsMAN APs" });
@@ -274,52 +176,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = parseInt(req.params.id);
       let capsmanAP = await storage.getCapsmanAP(id);
       
-      // Nếu không tìm thấy AP, tạo dữ liệu mẫu dựa trên ID
       if (!capsmanAP) {
-        console.log("Không tìm thấy CAPsMAN AP với ID", id, "- tạo dữ liệu mẫu");
-        
-        // Tạo một AP mẫu theo ID
-        const apNames = ["AP1-Floor1", "AP2-Floor2", "AP3-Outdoor"];
-        const apIdentities = ["MikroTik AP Floor 1", "MikroTik AP Floor 2", "MikroTik AP Outdoor"];
-        const apIPs = ["192.168.1.101", "192.168.1.102", "192.168.1.103"];
-        const apModels = ["cAP ac", "wAP ac", "SXTsq 5 ac"];
-        const apVersions = ["6.48.4", "6.48.4", "6.48.3"];
-        const apSerialNumbers = ["9A284D32EF01", "9A284D32EF02", "9A284D32EF03"];
-        
-        // Index trong mảng (0-2) dựa trên id (1-3)
-        const index = (id - 1) % 3;
-        
-        const sampleAP = {
-          id,
-          deviceId: 1, // Giả sử thiết bị ID 1
-          name: apNames[index],
-          identity: apIdentities[index],
-          ipAddress: apIPs[index],
-          macAddress: `AA:BB:CC:${id}1:${id}2:${id}3`,
-          radioMac: `AA:BB:CC:${id}1:${id}2:${id + 10}`,
-          radioName: `wlan1-${apNames[index].toLowerCase()}`,
-          state: "running",
-          clients: 3 + Math.floor(Math.random() * 8),
-          uptime: `${1 + Math.floor(Math.random() * 5)}d ${Math.floor(Math.random() * 24)}h ${Math.floor(Math.random() * 60)}m`,
-          model: apModels[index],
-          version: apVersions[index],
-          serialNumber: apSerialNumbers[index],
-          lastSeen: new Date().toISOString(),
-          // Thêm thông tin chi tiết
-          frequency: 5180 + Math.floor(Math.random() * 200),
-          channel: ["36", "40", "44", "48", "52"][Math.floor(Math.random() * 5)],
-          signalStrength: -45 - Math.floor(Math.random() * 20),
-          txRate: "866 Mbps",
-          rxRate: "867 Mbps",
-          noiseFloor: -95 - Math.floor(Math.random() * 10),
-          distance: `${10 + Math.floor(Math.random() * 90)} m`,
-          ccq: 85 + Math.floor(Math.random() * 15)
-        };
-        
-        // Lưu AP mẫu vào storage
-        await storage.createCapsmanAP(sampleAP);
-        
-        return res.json(sampleAP);
+        return res.status(404).json({ message: "CAPsMAN AP not found" });
       }
       
       res.json(capsmanAP);
@@ -335,47 +193,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const apId = parseInt(req.params.id);
       let clients = await storage.getCapsmanClients(apId);
       
-      // Nếu không có clients, tạo dữ liệu mẫu
-      if (!clients || clients.length === 0) {
-        console.log("Không có clients cho CAPsMAN AP", apId, "- tạo dữ liệu mẫu");
-        
-        // Tạo từ 1-5 clients mẫu
-        const numClients = 2 + Math.floor(Math.random() * 4);
-        const clientNames = ["laptop", "mobile", "tablet", "desktop", "iphone"];
-        const usernames = ["user01", "user02", "admin", "guest", "staff"];
-        const deviceId = 1; // Giả sử thiết bị chính ID 1
-        
-        const sampleClients = [];
-        
-        for (let i = 0; i < numClients; i++) {
-          const clientId = (apId * 10) + i + 1;
-          const macLastPart = (Math.floor(Math.random() * 99) + 10).toString();
-          
-          const sampleClient = {
-            id: clientId,
-            apId: apId,
-            deviceId: deviceId,
-            macAddress: `CC:DD:EE:${apId}${i}:${macLastPart}:01`,
-            ipAddress: `192.168.1.${20 + i + (apId * 10)}`,
-            hostname: `${clientNames[i % clientNames.length]}-${apId}-${i + 1}`,
-            signalStrength: -55 - Math.floor(Math.random() * 25),
-            txRate: `${144 + (Math.floor(Math.random() * 7) * 72)} Mbps`,
-            rxRate: `${144 + (Math.floor(Math.random() * 7) * 72)} Mbps`,
-            connectedTime: `${Math.floor(Math.random() * 12)}h ${Math.floor(Math.random() * 59)}m`,
-            username: usernames[i % usernames.length],
-            interface: `wlan${apId}-${i}`,
-            lastActivity: new Date().toISOString()
-          };
-          
-          // Lưu client mẫu vào storage
-          await storage.createCapsmanClient(sampleClient);
-          sampleClients.push(sampleClient);
-        }
-        
-        return res.json(sampleClients);
-      }
-      
-      res.json(clients);
+      // Trả về danh sách clients thực tế - không tạo dữ liệu mẫu
+      res.json(clients || []);
     } catch (error) {
       console.error("Lỗi khi lấy danh sách clients:", error);
       res.status(500).json({ message: "Failed to fetch CAPsMAN clients" });

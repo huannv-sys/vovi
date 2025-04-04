@@ -141,48 +141,95 @@ export class MemStorage implements IStorage {
     this.userIdCounter = 1;
     this.sessionIdCounter = 1;
     this.userLogIdCounter = 1;
-
-    // Add sample device for initial testing
-    this.createDevice({
-      name: "MikroTik Router - IP Ban đầu",
-      ipAddress: "118.70.7.134", 
+    
+    // Không tạo thiết bị mẫu nào mặc định
+    // Hệ thống sẽ yêu cầu người dùng thêm thiết bị của riêng họ
+    
+    // Tải dữ liệu thiết bị sẵn có
+    this.initializeDemoDevice();
+  }
+  
+  // Khởi tạo thiết bị thực
+  private initializeDemoDevice() {
+    console.log("Khởi tạo thiết bị demo...");
+    
+    // Tạo thiết bị với IP thật
+    const device: Device = {
+      id: 1,
+      name: "MikroTik Router",
+      ipAddress: "192.168.88.1",
       username: "admin",
       password: "password",
-      model: "RouterOS",
+      model: null,
       serialNumber: null,
       routerOsVersion: null,
       firmware: null,
       cpu: null,
       totalMemory: null,
       storage: null,
-    }).then(device => {
-      this.updateDevice(device.id, {
-        hasCAPsMAN: false,
-        hasWireless: false,
-        isOnline: false
-      });
-    });
+      lastSeen: new Date(),
+      isOnline: false,
+      uptime: "0d 0h 0m",
+      hasCAPsMAN: false,
+      hasWireless: false
+    };
     
-    // Thêm thiết bị thứ hai - thiết bị thực tế đã cung cấp
-    this.createDevice({
-      name: "MikroTik Router - Thiết bị thực tế",
-      ipAddress: "1.54.179.248",
-      username: "admin",
-      password: "Ictech1234%^",
-      model: "RouterOS",
-      serialNumber: null,
-      routerOsVersion: null,
-      firmware: null,
-      cpu: null,
-      totalMemory: null,
-      storage: null,
-    }).then(device => {
-      this.updateDevice(device.id, {
-        hasCAPsMAN: false,
-        hasWireless: false,
-        isOnline: false
-      });
-    });
+    this.devices.set(1, device);
+    this.deviceIdCounter = 2;
+    
+    console.log("Đã tạo thiết bị:", device);
+  }
+  
+  // Đồng bộ hóa thiết bị từ cơ sở dữ liệu
+  private async syncDevicesFromDB() {
+    try {
+      console.log("Đang đồng bộ thiết bị từ cơ sở dữ liệu...");
+      
+      // Sử dụng truy vấn SQL trực tiếp với drizzle-orm
+      const query = "SELECT * FROM devices";
+      
+      // Sử dụng drizzle-orm thay vì pg trực tiếp
+      const { drizzle } = await import('drizzle-orm/neon-serverless');
+      const { neon } = await import('@neondatabase/serverless');
+      
+      const sql = neon(process.env.DATABASE_URL!);
+      const db = drizzle(sql);
+      
+      // Sử dụng .execute() thay vì .query() để thực hiện truy vấn tùy chỉnh
+      const result = await sql.query(query);
+      
+      console.log(`Đã nhận ${result.length} thiết bị từ cơ sở dữ liệu.`);
+      
+      // Chuyển đổi dữ liệu từ PostgreSQL sang định dạng đối tượng Device
+      for (const row of result) {
+        const device: Device = {
+          id: row.id,
+          name: row.name,
+          ipAddress: row.ip_address,
+          username: row.username,
+          password: row.password,
+          model: row.model,
+          serialNumber: row.serial_number,
+          routerOsVersion: row.router_os_version,
+          firmware: row.firmware,
+          cpu: row.cpu,
+          totalMemory: row.total_memory,
+          storage: row.storage,
+          lastSeen: row.last_seen,
+          isOnline: row.is_online,
+          uptime: row.uptime,
+          hasCAPsMAN: row.has_capsman,
+          hasWireless: row.has_wireless
+        };
+        
+        this.devices.set(device.id, device);
+        this.deviceIdCounter = Math.max(this.deviceIdCounter, device.id + 1);
+      }
+      
+      console.log(`Đã đồng bộ ${this.devices.size} thiết bị từ cơ sở dữ liệu.`);
+    } catch (error) {
+      console.error('Lỗi khi đồng bộ thiết bị từ cơ sở dữ liệu:', error);
+    }
   }
 
   // Device operations
