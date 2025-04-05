@@ -141,6 +141,7 @@ export const interfaces = pgTable("interfaces", {
   rxErrors: integer("rx_errors").default(0),
   linkDowns: integer("link_downs").default(0),
   healthScore: integer("health_score"),
+  lastLinkUpTime: text("last_link_up_time"),
   lastUpdated: timestamp("last_updated").defaultNow(),
 });
 

@@ -85,8 +85,13 @@ class MikrotikClient {
     return result;
   }
 
-  async connect(timeout = 10000): Promise<boolean> {
+  async connect(timeout = 20000): Promise<boolean> {
     try {
+      if (this.connected && this.connection) {
+        console.log(`Already connected to ${this.ipAddress}`);
+        return true;
+      }
+      
       console.log(`Connecting to ${this.ipAddress}:${this.port} as ${this.username}`);
       
       const connectionConfig = {
@@ -94,7 +99,8 @@ class MikrotikClient {
         user: this.username,
         password: this.password,
         port: this.port,
-        timeout: timeout
+        timeout: timeout,
+        keepalive: true
       };
       
       console.log(`Connection config: ${JSON.stringify({...connectionConfig, password: '******'})}`);
@@ -103,7 +109,7 @@ class MikrotikClient {
       this.connection = new RouterOS.RouterOSAPI(connectionConfig);
       
       try {
-        // Thiết lập timeout cho kết nối
+        // Thiết lập timeout cho kết nối với thời gian dài hơn (20 giây)
         const connectPromise = this.connection.connect();
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => {
@@ -115,6 +121,15 @@ class MikrotikClient {
         
         console.log(`Successfully connected to ${this.ipAddress}`);
         this.connected = true;
+        
+        // Thiết lập sự kiện để theo dõi khi kết nối bị đóng một cách không mong muốn
+        if (this.connection && this.connection.socket) {
+          this.connection.socket.on('close', () => {
+            console.log(`Connection to ${this.ipAddress} was closed unexpectedly`);
+            this.connected = false;
+          });
+        }
+        
         return true;
       } catch (error) {
         console.error(`Failed to connect to ${this.ipAddress}:`, error);
@@ -273,10 +288,10 @@ export class MikrotikService {
       
       for (const port of ports) {
         try {
-          console.log(`Trying to connect to ${device.ipAddress} on port ${port}... (Wait 10s for timeout)`);
+          console.log(`Trying to connect to ${device.ipAddress} on port ${port}... (Wait 20s for timeout)`);
           
           client.setPort(port);
-          const connected = await client.connect(10000);
+          const connected = await client.connect(20000);
           
           if (connected) {
             console.log(`Successfully connected to ${device.ipAddress} on port ${port}`);
@@ -463,7 +478,7 @@ export class MikrotikService {
                 await capsmanService.collectCapsmanStats(deviceId);
               }
               
-              return; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
+              return true; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
             }
           } catch (managerError) {
             console.warn(`Không tìm thấy CAPsMAN manager:`, managerError);
@@ -479,7 +494,7 @@ export class MikrotikService {
               console.log(`Found ${capsmanConfigData.length} CAPsMAN configurations`);
               await storage.updateDevice(deviceId, { hasCAPsMAN: true });
               console.log(`Thiết lập hasCAPsMAN = true cho thiết bị ${deviceId} dựa vào kết quả kiểm tra configurations`);
-              return; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
+              return true; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
             }
           } catch (configError) {
             console.warn(`Không tìm thấy CAPsMAN configurations:`, configError);
@@ -495,7 +510,7 @@ export class MikrotikService {
               console.log(`Found ${capsmanAPData.length} CAPsMAN access points`);
               await storage.updateDevice(deviceId, { hasCAPsMAN: true });
               console.log(`Thiết lập hasCAPsMAN = true cho thiết bị ${deviceId} dựa vào kết quả kiểm tra access-point`);
-              return; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
+              return true; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
             }
           } catch (apError) {
             console.warn(`Không tìm thấy CAPsMAN access-point:`, apError);
@@ -511,7 +526,7 @@ export class MikrotikService {
               console.log(`Found ${capsmanInterfaceData.length} CAPsMAN interfaces`);
               await storage.updateDevice(deviceId, { hasCAPsMAN: true });
               console.log(`Thiết lập hasCAPsMAN = true cho thiết bị ${deviceId} dựa vào kết quả kiểm tra interfaces`);
-              return; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
+              return true; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
             }
           } catch (interfaceError) {
             console.warn(`Không tìm thấy CAPsMAN interfaces:`, interfaceError);
