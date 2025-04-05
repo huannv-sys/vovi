@@ -105,11 +105,14 @@ const ClientsPage: React.FC = () => {
       });
       
       if (response.data && response.data.devices) {
-        setClients(prev => {
+        setClients(prevClients => {
+          // Đảm bảo prev là mảng
+          const currentClients = Array.isArray(prevClients) ? prevClients : [];
+          
           // Merge new devices with existing ones
-          const existingIds = new Set(prev.map(d => d.id));
+          const existingIds = new Set(currentClients.map(d => d.id));
           const newDevices = response.data.devices.filter((d: NetworkDevice) => !existingIds.has(d.id));
-          return [...prev, ...newDevices];
+          return [...currentClients, ...newDevices];
         });
         setAlert({
           type: 'success',
@@ -175,8 +178,11 @@ const ClientsPage: React.FC = () => {
   };
 
   const updateClientInList = (updatedClient: NetworkDevice) => {
-    setClients(prev => {
-      const updated = [...prev];
+    setClients(prevClients => {
+      // Đảm bảo prev là mảng
+      const currentClients = Array.isArray(prevClients) ? prevClients : [];
+      const updated = [...currentClients];
+      
       const index = updated.findIndex(c => c.id === updatedClient.id);
       if (index >= 0) {
         updated[index] = { ...updated[index], ...updatedClient };
