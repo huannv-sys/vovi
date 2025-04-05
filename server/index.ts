@@ -1,6 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { schedulerService } from "./services";
+import { db } from "./db"; // Import db để đảm bảo kết nối database được thiết lập
+import { sql } from "drizzle-orm";
 
 const app = express();
 app.use(express.json());
@@ -37,6 +40,19 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Khởi tạo dịch vụ lập lịch sau khi kết nối database
+  try {
+    // Kiểm tra kết nối database
+    await db.execute(sql`SELECT 1`);
+    console.log("Database connection established");
+    
+    // Khởi tạo scheduler service
+    schedulerService.initialize();
+    console.log("Scheduler service initialized");
+  } catch (error) {
+    console.error("Failed to initialize services:", error);
+  }
+  
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

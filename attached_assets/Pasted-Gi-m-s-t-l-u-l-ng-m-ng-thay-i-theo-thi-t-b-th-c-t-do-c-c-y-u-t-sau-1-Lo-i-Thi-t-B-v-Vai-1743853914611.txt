@@ -1,0 +1,46 @@
+Giám sát lưu lượng mạng thay đổi theo thiết bị thực tế do các yếu tố sau:
+
+1. Loại Thiết Bị và Vai Trò
+Router/Định Tuyến: Tập trung vào bảng định tuyến, tốc độ chuyển tiếp gói, giao thức như BGP/OSPF. Sử dụng NetFlow, sFlow để phân tích lưu lượng liên mạng.
+
+Switch: Giám sát MAC address, VLAN, trạng thái cổng. Công cụ như SNMP hoặc mirroring cổng (SPAN) để bắt gói tin.
+
+Thiết Bị Cuối (Máy tính, IoT): Phân tích lưu lượng ứng dụng (HTTP, video) hoặc giao thức IoT (MQTT, CoAP). Cần agent-based monitoring hoặc DPI (Deep Packet Inspection).
+
+2. Khả Năng Phần Cứng và Phần Mềm
+Thiết Bị Enterprise: Hỗ trợ SNMP, NetFlow, API (RESTCONF), cho phép thu thập chi tiết.
+
+Thiết Bị Consumer-Grade: Giới hạn khả năng giám sát, đòi hỏi giải pháp thụ động (ví dụ: packet sniffing từ gateway).
+
+Thiết Bị Ảo/Cloud: Sử dụng API của nền tảng (AWS CloudWatch, VMware vSphere) để theo dõi lưu lượng ảo.
+
+3. Hệ Điều Hành và Giao Thức
+Cisco IOS/Juniper Junos: Dùng CLI hoặc giao thức chuyên biệt (SNMP, Syslog).
+
+Linux-Based: Hỗ trợ tools như tcpdump, iptables, hoặc eBPF để giám sát sâu.
+
+Thiết Bị IoT Nhúng: Giám sát qua gateway hoặc protocol-specific analyzers.
+
+4. Môi Trường Mạng
+Mạng Truyền Thống: Tập trung vào điểm trung tâm (core router, firewall).
+
+SDN/Cloud: Tích hợp với controller (OpenFlow) để giám sát lưu lượng động.
+
+Không Dây (Wi-Fi): Theo dõi cường độ tín hiệu, nhiễu, và hiệu suất access point.
+
+5. Phương Pháp Thu Thập Dữ Liệu
+Active Monitoring: Dùng SNMP polling, ICMP ping—phù hợp thiết bị mạnh.
+
+Passive Monitoring: Packet sniffing, flow analysis (NetFlow)—ít ảnh hưởng hiệu năng.
+
+Log Aggregation: Tập hợp logs từ firewall, IDS/IPS vào SIEM (Splunk, ELK).
+
+6. Yêu Cầu Bảo Mật và Tuân Thủ
+Thiết Bị Bảo Mật (Firewall, IDS): Tập trung vào logs sự kiện, phát hiện xâm nhập.
+
+Tuân Thủ: Đảm bảo thiết bị hỗ trợ lưu trữ logs đủ thời gian (GDPR, PCI-DSS).
+
+7. Tối Ưu Hóa Tài Nguyên
+Thiết Bị Công Suất Thấp (IoT): Tránh polling liên tục; dùng push-based mechanisms (MQTT).
+
+Scalability: Sử dụng streaming telemetry thay SNMP trong data center lớn

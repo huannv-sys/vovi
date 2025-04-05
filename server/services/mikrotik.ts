@@ -16,6 +16,24 @@ import { deviceInfoService } from "./device_info";
 import * as RouterOS from 'node-routeros';
 
 /**
+ * Interface định nghĩa tham số kết nối
+ */
+interface ConnectionParams {
+  id: number;
+  host: string;
+  username: string;
+  password: string;
+  port?: number;
+}
+
+/**
+ * Lưu trữ các kết nối MikroTik đang hoạt động
+ */
+interface ConnectionStore {
+  [key: number]: MikrotikClient;
+}
+
+/**
  * MikroTik Client Class - Quản lý kết nối tới thiết bị MikroTik
  */
 class MikrotikClient {
@@ -168,6 +186,73 @@ export class MikrotikService {
    */
   getClientForDevice(deviceId: number): MikrotikClient | undefined {
     return this.clients.get(deviceId);
+  }
+  
+  /**
+   * Kết nối đến thiết bị MikroTik sử dụng tham số kết nối
+   * @param params Tham số kết nối
+   * @returns Thành công hay không
+   */
+  async connect(params: ConnectionParams): Promise<boolean> {
+    try {
+      // Kiểm tra xem đã có kết nối chưa
+      let client = this.clients.get(params.id);
+      
+      // Nếu đã có kết nối, ngắt kết nối cũ
+      if (client) {
+        await client.disconnect();
+        this.clients.delete(params.id);
+      }
+      
+      // Tạo client mới
+      client = new MikrotikClient(params.host, params.username, params.password);
+      
+      // Thiết lập cổng nếu có
+      if (params.port) {
+        client.setPort(params.port);
+      }
+      
+      // Kết nối
+      const connected = await client.connect();
+      
+      if (connected) {
+        this.clients.set(params.id, client);
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error(`Error connecting to device ${params.id}:`, error);
+      return false;
+    }
+  }
+  
+  /**
+   * Ngắt kết nối từ thiết bị MikroTik
+   * @param deviceId ID của thiết bị
+   */
+  async disconnect(deviceId: number): Promise<void> {
+    const client = this.clients.get(deviceId);
+    if (client) {
+      await client.disconnect();
+      this.clients.delete(deviceId);
+    }
+  }
+  
+  /**
+   * Gửi lệnh đến thiết bị MikroTik
+   * @param deviceId ID của thiết bị
+   * @param command Lệnh cần gửi
+   * @param params Tham số của lệnh (nếu có)
+   * @returns Kết quả từ thiết bị
+   */
+  async sendCommand(deviceId: number, command: string, params: any[] = []): Promise<any> {
+    const client = this.clients.get(deviceId);
+    if (!client) {
+      throw new Error(`No connection to device ${deviceId}`);
+    }
+    
+    return await client.executeCommand(command, params);
   }
   
   async connectToDevice(deviceId: number): Promise<boolean> {

@@ -1,233 +1,338 @@
-import { mikrotikService } from "./mikrotik";
+import { deviceDiscoveryService } from "./discovery";
+import { deviceIdentificationService } from "./device-identification";
 import { storage } from "../storage";
-import { alertSeverity } from "@shared/schema";
+import { db } from "../db";
+import { networkDevices } from "@shared/schema";
+import { eq, and, lt, desc } from "drizzle-orm";
 
-// Cấu hình cho scheduler
-interface SchedulerConfig {
-  pollingInterval: number;      // Thời gian giữa các lần polling (ms)
-  requestTimeout: number;       // Thời gian timeout cho mỗi thiết bị (ms)
-  maxConcurrentRequests: number; // Số lượng thiết bị tối đa có thể polling cùng lúc
-  maxRetries: number;           // Số lần thử lại tối đa khi lỗi
-  retryDelay: number;           // Thời gian chờ giữa các lần thử lại (ms)
-}
-
-// Lưu trữ trạng thái polling của thiết bị
-interface DevicePollingState {
-  deviceId: number;
-  deviceName: string;
-  lastPolled: Date | null;
-  consecutiveFailures: number;
-  isPolling: boolean;
-  lastError: string | null;
-}
-
-class SchedulerService {
-  private intervalId?: NodeJS.Timeout;
-  private config: SchedulerConfig = {
-    pollingInterval: 10000,      // 10 giây - tần suất cao cho cập nhật real-time
-    requestTimeout: 30000,       // 30 giây timeout
-    maxConcurrentRequests: 5,    // Tối đa 5 thiết bị cùng lúc
-    maxRetries: 3,               // Thử lại 3 lần khi lỗi
-    retryDelay: 5000             // Chờ 5 giây giữa các lần thử lại
-  };
+/**
+ * Service lập lịch quét và xử lý tự động
+ */
+export class SchedulerService {
+  private discoveryScanInterval: NodeJS.Timeout | null = null;
+  private identificationScanInterval: NodeJS.Timeout | null = null;
+  private routerDiscoveryInterval: NodeJS.Timeout | null = null;
+  private isDiscoveryRunning = false;
+  private isIdentificationRunning = false;
+  private isRouterDiscoveryRunning = false;
   
-  // Lưu trạng thái polling của các thiết bị theo deviceId
-  private deviceStates: Map<number, DevicePollingState> = new Map();
+  // Khoảng thời gian quét mặc định (5 phút)
+  private discoveryScanIntervalMs = 5 * 60 * 1000;
+  // Khoảng thời gian nhận diện mặc định (15 phút)
+  private identificationScanIntervalMs = 15 * 60 * 1000;
+  // Khoảng thời gian quét router mặc định (10 phút)
+  private routerDiscoveryIntervalMs = 10 * 60 * 1000;
   
-  // Đếm số lượng polling đang thực hiện
-  private activePollCount: number = 0;
-
-  // Khởi động scheduler
-  start() {
-    if (this.intervalId) {
-      return;
-    }
-
-    console.log(`Starting device polling scheduler (interval: ${this.config.pollingInterval}ms)`);
-    this.intervalId = setInterval(this.pollDevices.bind(this), this.config.pollingInterval);
-    
-    // Poll devices immediately on start
-    this.pollDevices();
-  }
-
-  // Dừng scheduler
-  stop() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = undefined;
-      console.log("Stopped device polling scheduler");
-    }
-  }
-
-  // Cập nhật cấu hình polling interval
-  setPollingInterval(milliseconds: number) {
-    if (milliseconds < 5000) {
-      console.warn("Polling interval cannot be less than 5 seconds");
-      milliseconds = 5000;
-    }
-    
-    this.config.pollingInterval = milliseconds;
-    
-    // Restart polling with new interval if already running
-    if (this.intervalId) {
-      this.stop();
-      this.start();
-    }
-    
-    console.log(`Updated polling interval to ${milliseconds}ms`);
+  /**
+   * Khởi tạo scheduler và bắt đầu các công việc
+   */
+  public initialize() {
+    console.log('Initializing network discovery scheduler...');
+    this.startDiscoveryScan();
+    this.startIdentificationScan();
+    this.startRouterDiscovery();
   }
   
-  // Cập nhật cấu hình số lượng thiết bị tối đa cùng lúc
-  setMaxConcurrentDevices(count: number) {
-    if (count < 1) {
-      console.warn("Max concurrent devices cannot be less than 1");
-      count = 1;
+  /**
+   * Dừng tất cả các công việc đang chạy
+   */
+  public stop() {
+    if (this.discoveryScanInterval) {
+      clearInterval(this.discoveryScanInterval);
+      this.discoveryScanInterval = null;
     }
     
-    this.config.maxConcurrentRequests = count;
-    console.log(`Updated max concurrent devices to ${count}`);
-  }
-
-  // Hàm chính để polling thiết bị
-  async pollDevices() {
-    try {
-      // Lấy danh sách thiết bị
-      const devices = await storage.getAllDevices();
-      console.log(`Polling ${devices.length} devices...`);
-      
-      // Khởi tạo hoặc cập nhật trạng thái thiết bị nếu chưa có
-      for (const device of devices) {
-        if (!this.deviceStates.has(device.id)) {
-          this.deviceStates.set(device.id, {
-            deviceId: device.id,
-            deviceName: device.name,
-            lastPolled: null,
-            consecutiveFailures: 0,
-            isPolling: false,
-            lastError: null
-          });
-        } else {
-          // Cập nhật tên thiết bị nếu đã thay đổi
-          const state = this.deviceStates.get(device.id)!;
-          state.deviceName = device.name;
-        }
-      }
-      
-      // Lọc các thiết bị chưa đang được polling
-      const availableDevices = devices.filter(
-        device => !this.deviceStates.get(device.id)?.isPolling
-      );
-      
-      // Số lượng thiết bị có thể thêm vào để polling
-      const availableSlots = Math.max(0, this.config.maxConcurrentRequests - this.activePollCount);
-      
-      if (availableSlots > 0 && availableDevices.length > 0) {
-        // Ưu tiên thiết bị chưa được polling hoặc lâu nhất chưa được polling
-        const devicesToProcess = availableDevices
-          .sort((a, b) => {
-            const stateA = this.deviceStates.get(a.id)!;
-            const stateB = this.deviceStates.get(b.id)!;
-            
-            if (!stateA.lastPolled && !stateB.lastPolled) return 0;
-            if (!stateA.lastPolled) return -1;
-            if (!stateB.lastPolled) return 1;
-            
-            return stateA.lastPolled.getTime() - stateB.lastPolled.getTime();
-          })
-          .slice(0, availableSlots);
-        
-        // Xử lý từng thiết bị song song
-        for (const device of devicesToProcess) {
-          this.pollDevice(device.id, 0); // Bắt đầu với số lần thử = 0
-        }
-      }
-    } catch (error) {
-      console.error("Error in device polling scheduler:", error);
+    if (this.identificationScanInterval) {
+      clearInterval(this.identificationScanInterval);
+      this.identificationScanInterval = null;
     }
+    
+    if (this.routerDiscoveryInterval) {
+      clearInterval(this.routerDiscoveryInterval);
+      this.routerDiscoveryInterval = null;
+    }
+    
+    console.log('Network discovery scheduler stopped');
   }
   
-  // Hàm xử lý polling cho một thiết bị
-  private async pollDevice(deviceId: number, retryCount: number) {
-    const state = this.deviceStates.get(deviceId);
-    if (!state) return;
+  /**
+   * Bắt đầu quét phát hiện thiết bị theo lịch
+   */
+  private startDiscoveryScan() {
+    if (this.discoveryScanInterval) {
+      clearInterval(this.discoveryScanInterval);
+    }
     
-    // Đánh dấu thiết bị đang được polling
-    state.isPolling = true;
-    this.activePollCount++;
+    // Chạy ngay lần đầu
+    this.runNetworkDiscovery();
+    
+    // Sau đó lập lịch theo khoảng thời gian
+    this.discoveryScanInterval = setInterval(() => {
+      this.runNetworkDiscovery();
+    }, this.discoveryScanIntervalMs);
+    
+    console.log(`Network discovery scan scheduled every ${this.discoveryScanIntervalMs / (60 * 1000)} minutes`);
+  }
+  
+  /**
+   * Bắt đầu quét nhận diện thiết bị theo lịch
+   */
+  private startIdentificationScan() {
+    if (this.identificationScanInterval) {
+      clearInterval(this.identificationScanInterval);
+    }
+    
+    // Chạy ngay lần đầu
+    this.runDeviceIdentification();
+    
+    // Sau đó lập lịch theo khoảng thời gian
+    this.identificationScanInterval = setInterval(() => {
+      this.runDeviceIdentification();
+    }, this.identificationScanIntervalMs);
+    
+    console.log(`Device identification scan scheduled every ${this.identificationScanIntervalMs / (60 * 1000)} minutes`);
+  }
+  
+  /**
+   * Bắt đầu quét router theo lịch
+   */
+  private startRouterDiscovery() {
+    if (this.routerDiscoveryInterval) {
+      clearInterval(this.routerDiscoveryInterval);
+    }
+    
+    // Chạy ngay lần đầu
+    this.runRouterDiscovery();
+    
+    // Sau đó lập lịch theo khoảng thời gian
+    this.routerDiscoveryInterval = setInterval(() => {
+      this.runRouterDiscovery();
+    }, this.routerDiscoveryIntervalMs);
+    
+    console.log(`Router DHCP discovery scheduled every ${this.routerDiscoveryIntervalMs / (60 * 1000)} minutes`);
+  }
+  
+  /**
+   * Thực hiện phát hiện thiết bị mạng
+   */
+  private async runNetworkDiscovery() {
+    // Tránh chạy đồng thời
+    if (this.isDiscoveryRunning) return;
+    
+    this.isDiscoveryRunning = true;
     
     try {
-      // Thiết lập timeout
-      const timeout = new Promise<void>((_, reject) => {
-        setTimeout(() => reject(new Error("Device polling timed out")), this.config.requestTimeout);
-      });
+      console.log('Running network discovery scan...');
       
-      // Thực hiện thu thập metrics
-      await Promise.race([
-        mikrotikService.collectDeviceMetrics(deviceId),
-        timeout
-      ]);
+      // Quét ARP trên mạng cục bộ
+      await deviceDiscoveryService.scanNetworkByArp();
       
-      // Cập nhật trạng thái thành công
-      state.lastPolled = new Date();
-      state.consecutiveFailures = 0;
-      state.lastError = null;
+      // Quét các subnet tùy chỉnh (ví dụ: từ cấu hình)
+      // await deviceDiscoveryService.scanNetworkByArp('192.168.2.0/24');
       
-      // Tạo cảnh báo nếu thiết bị trước đó lỗi và giờ đã kết nối lại
-      if (state.consecutiveFailures > 0) {
-        await mikrotikService.createAlert(
-          deviceId,
-          alertSeverity.INFO,
-          "Device reconnected",
-          `Reconnected to device ${state.deviceName} after ${state.consecutiveFailures} failed attempts`
-        );
-      }
+      console.log('Network discovery scan completed');
     } catch (error) {
-      // Xử lý lỗi
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      state.consecutiveFailures++;
-      state.lastError = errorMessage;
-      
-      console.error(`Error polling device ${deviceId} (${state.deviceName}):`, errorMessage);
-      
-      // Thử lại nếu chưa đạt giới hạn
-      if (retryCount < this.config.maxRetries) {
-        console.log(`Retrying device ${deviceId} (${state.deviceName}) in ${this.config.retryDelay}ms (attempt ${retryCount + 1}/${this.config.maxRetries})`);
-        
-        // Đặt timeout để thử lại
-        setTimeout(() => {
-          // Giảm activePollCount để không đếm trùng
-          this.activePollCount--;
-          state.isPolling = false;
-          
-          this.pollDevice(deviceId, retryCount + 1);
-        }, this.config.retryDelay);
-        
-        return;
-      }
-      
-      // Thiết bị vẫn lỗi sau nhiều lần thử, tạo cảnh báo
-      await mikrotikService.createAlert(
-        deviceId,
-        alertSeverity.WARNING,
-        "Device connection failed",
-        `Failed to connect to device ${state.deviceName} after ${this.config.maxRetries} attempts: ${errorMessage}`
-      );
-      
-      // Cập nhật trạng thái thiết bị thành offline
-      await storage.updateDevice(deviceId, { isOnline: false });
+      console.error('Error during network discovery scan:', error);
     } finally {
-      // Nếu không thử lại nữa, giải phóng slot
-      if (retryCount >= this.config.maxRetries) {
-        state.isPolling = false;
-        this.activePollCount--;
-      }
+      this.isDiscoveryRunning = false;
     }
   }
   
-  // Lấy trạng thái polling của các thiết bị
-  getDevicePollingStatus() {
-    return Array.from(this.deviceStates.values());
+  /**
+   * Thực hiện nhận diện thiết bị mạng
+   */
+  private async runDeviceIdentification() {
+    // Tránh chạy đồng thời
+    if (this.isIdentificationRunning) return;
+    
+    this.isIdentificationRunning = true;
+    
+    try {
+      console.log('Running device identification scan...');
+      
+      // Lấy các thiết bị chưa được nhận diện hoặc có điểm nhận diện thấp
+      const devices = await db.select()
+        .from(networkDevices)
+        .where(
+          and(
+            eq(networkDevices.isIdentified, false),
+            lt(networkDevices.identificationScore || 0, 50)
+          )
+        )
+        .orderBy(desc(networkDevices.lastSeen))
+        .limit(20);
+      
+      console.log(`Found ${devices.length} devices for identification`);
+      
+      // Nhận diện từng thiết bị
+      for (const device of devices) {
+        await deviceIdentificationService.identifyDevice(device.id);
+      }
+      
+      console.log('Device identification scan completed');
+    } catch (error) {
+      console.error('Error during device identification scan:', error);
+    } finally {
+      this.isIdentificationRunning = false;
+    }
+  }
+  
+  /**
+   * Thực hiện quét DHCP từ các router
+   */
+  private async runRouterDiscovery() {
+    // Tránh chạy đồng thời
+    if (this.isRouterDiscoveryRunning) return;
+    
+    this.isRouterDiscoveryRunning = true;
+    
+    try {
+      console.log('Running router DHCP discovery...');
+      
+      // Lấy tất cả thiết bị MikroTik
+      const devices = await storage.getAllDevices();
+      
+      // Lấy thông tin DHCP từ mỗi router
+      for (const device of devices) {
+        try {
+          await deviceDiscoveryService.detectDevicesFromMikrotikDHCP(device.id);
+        } catch (error) {
+          console.error(`Error scanning DHCP from device ${device.id}:`, error);
+        }
+      }
+      
+      console.log('Router DHCP discovery completed');
+    } catch (error) {
+      console.error('Error during router DHCP discovery:', error);
+    } finally {
+      this.isRouterDiscoveryRunning = false;
+    }
+  }
+  
+  /**
+   * Cập nhật khoảng thời gian quét phát hiện
+   * @param intervalMinutes Khoảng thời gian (phút)
+   */
+  public setDiscoveryScanInterval(intervalMinutes: number) {
+    if (intervalMinutes < 1) intervalMinutes = 1;
+    
+    this.discoveryScanIntervalMs = intervalMinutes * 60 * 1000;
+    this.startDiscoveryScan();
+    
+    return intervalMinutes;
+  }
+  
+  /**
+   * Cập nhật khoảng thời gian quét nhận diện
+   * @param intervalMinutes Khoảng thời gian (phút)
+   */
+  public setIdentificationScanInterval(intervalMinutes: number) {
+    if (intervalMinutes < 1) intervalMinutes = 1;
+    
+    this.identificationScanIntervalMs = intervalMinutes * 60 * 1000;
+    this.startIdentificationScan();
+    
+    return intervalMinutes;
+  }
+  
+  /**
+   * Cập nhật khoảng thời gian quét router
+   * @param intervalMinutes Khoảng thời gian (phút)
+   */
+  public setRouterDiscoveryInterval(intervalMinutes: number) {
+    if (intervalMinutes < 1) intervalMinutes = 1;
+    
+    this.routerDiscoveryIntervalMs = intervalMinutes * 60 * 1000;
+    this.startRouterDiscovery();
+    
+    return intervalMinutes;
+  }
+  
+  /**
+   * Chạy quét phát hiện thủ công
+   */
+  public async runManualDiscovery(subnet?: string) {
+    if (this.isDiscoveryRunning) {
+      return { success: false, message: 'Discovery scan is already running' };
+    }
+    
+    try {
+      this.isDiscoveryRunning = true;
+      const devices = await deviceDiscoveryService.scanNetworkByArp(subnet);
+      return { 
+        success: true, 
+        message: `Manual discovery completed, found ${devices.length} devices`, 
+        devices 
+      };
+    } catch (error) {
+      console.error('Error during manual discovery:', error);
+      return { success: false, message: `Error: ${error}` };
+    } finally {
+      this.isDiscoveryRunning = false;
+    }
+  }
+  
+  /**
+   * Chạy quét DHCP từ router thủ công
+   * @param deviceId ID của thiết bị MikroTik
+   */
+  public async runManualRouterDiscovery(deviceId: number) {
+    if (this.isRouterDiscoveryRunning) {
+      return { success: false, message: 'Router discovery is already running' };
+    }
+    
+    try {
+      this.isRouterDiscoveryRunning = true;
+      const devices = await deviceDiscoveryService.detectDevicesFromMikrotikDHCP(deviceId);
+      return { 
+        success: true, 
+        message: `Manual router discovery completed, found ${devices.length} devices from router ID ${deviceId}`, 
+        devices 
+      };
+    } catch (error) {
+      console.error(`Error during manual router discovery for device ${deviceId}:`, error);
+      return { success: false, message: `Error: ${error}` };
+    } finally {
+      this.isRouterDiscoveryRunning = false;
+    }
+  }
+  
+  /**
+   * Chạy nhận diện thiết bị thủ công
+   * @param networkDeviceId ID của thiết bị mạng
+   */
+  public async runManualIdentification(networkDeviceId: number) {
+    try {
+      const device = await deviceIdentificationService.identifyDevice(networkDeviceId);
+      if (!device) {
+        return { success: false, message: `Device with ID ${networkDeviceId} not found` };
+      }
+      
+      return { 
+        success: true, 
+        message: `Device identification completed for ${device.ipAddress}`, 
+        device 
+      };
+    } catch (error) {
+      console.error(`Error during manual identification for device ${networkDeviceId}:`, error);
+      return { success: false, message: `Error: ${error}` };
+    }
+  }
+  
+  /**
+   * Lấy trạng thái hiện tại của scheduler
+   */
+  public getStatus() {
+    return {
+      isDiscoveryRunning: this.isDiscoveryRunning,
+      isIdentificationRunning: this.isIdentificationRunning,
+      isRouterDiscoveryRunning: this.isRouterDiscoveryRunning,
+      discoveryScanInterval: this.discoveryScanIntervalMs / (60 * 1000),
+      identificationScanInterval: this.identificationScanIntervalMs / (60 * 1000),
+      routerDiscoveryInterval: this.routerDiscoveryIntervalMs / (60 * 1000)
+    };
   }
 }
 
+// Xuất một thể hiện duy nhất của service lập lịch
 export const schedulerService = new SchedulerService();

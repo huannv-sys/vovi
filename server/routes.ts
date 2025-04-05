@@ -1,14 +1,22 @@
-import express, { type Request, Response } from "express";
+import express, { type Request, Response, NextFunction } from "express";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { mikrotikService } from "./services/mikrotik";
-import { wirelessService } from "./services/wireless";
-import { capsmanService } from "./services/capsman";
-import { schedulerService } from "./services/scheduler";
-import { deviceInfoService } from "./services/device_info";
+import { 
+  mikrotikService, 
+  wirelessService, 
+  capsmanService, 
+  schedulerService, 
+  deviceInfoService,
+  deviceDiscoveryService,
+  deviceIdentificationService
+} from "./services";
 import { interfaceHealthService } from "./services/interface_health";
-import { insertDeviceSchema, insertAlertSchema } from "@shared/schema";
+import { 
+  insertDeviceSchema, 
+  insertAlertSchema,
+  insertNetworkDeviceSchema
+} from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -493,6 +501,184 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Register the router with the prefix
+  // Network Discovery routes
+  router.get("/network-devices", async (req: Request, res: Response) => {
+    try {
+      const isIdentified = req.query.identified ? req.query.identified === 'true' : undefined;
+      const vendor = req.query.vendor as string | undefined;
+      const minScore = req.query.minScore ? parseInt(req.query.minScore as string) : undefined;
+      
+      const devices = await deviceDiscoveryService.getNetworkDevices({
+        isIdentified,
+        vendor,
+        minIdentificationScore: minScore
+      });
+      
+      res.json(devices);
+    } catch (error) {
+      console.error('Error fetching network devices:', error);
+      res.status(500).json({ message: "Failed to fetch network devices" });
+    }
+  });
+
+  router.get("/network-devices/:id", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      const [device] = await db.select()
+        .from(networkDevices)
+        .where(eq(networkDevices.id, deviceId));
+      
+      if (!device) {
+        return res.status(404).json({ message: "Network device not found" });
+      }
+      
+      // Lấy lịch sử phát hiện thiết bị
+      const history = await deviceDiscoveryService.getDeviceDiscoveryHistory(deviceId);
+      
+      res.json({ device, history });
+    } catch (error) {
+      console.error('Error fetching network device:', error);
+      res.status(500).json({ message: "Failed to fetch network device" });
+    }
+  });
+
+  router.post("/network-devices", async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertNetworkDeviceSchema.parse(req.body);
+      const device = await deviceDiscoveryService.detectDevice(
+        validatedData.ipAddress,
+        validatedData.macAddress,
+        'manual',
+        undefined,
+        validatedData.deviceData || {}
+      );
+      
+      res.status(201).json(device);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid device data", errors: error.errors });
+      }
+      console.error('Error creating network device:', error);
+      res.status(500).json({ message: "Failed to create network device" });
+    }
+  });
+
+  router.post("/network-devices/:id/identify", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      const device = await deviceIdentificationService.identifyDevice(deviceId);
+      
+      if (!device) {
+        return res.status(404).json({ message: "Network device not found" });
+      }
+      
+      res.json(device);
+    } catch (error) {
+      console.error('Error identifying network device:', error);
+      res.status(500).json({ message: "Failed to identify network device" });
+    }
+  });
+
+  router.post("/discovery/scan", async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({ subnet: z.string().optional() });
+      const { subnet } = schema.parse(req.body);
+      
+      const result = await schedulerService.runManualDiscovery(subnet);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid data", errors: error.errors });
+      }
+      console.error('Error running network discovery scan:', error);
+      res.status(500).json({ message: "Failed to run network discovery scan" });
+    }
+  });
+
+  router.post("/discovery/dhcp/:deviceId", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.deviceId);
+      const result = await schedulerService.runManualRouterDiscovery(deviceId);
+      res.json(result);
+    } catch (error) {
+      console.error(`Error scanning DHCP from device ${req.params.deviceId}:`, error);
+      res.status(500).json({ message: "Failed to scan DHCP from router" });
+    }
+  });
+
+  router.get("/discovery/status", async (_req: Request, res: Response) => {
+    try {
+      const status = schedulerService.getStatus();
+      res.json(status);
+    } catch (error) {
+      console.error('Error getting discovery status:', error);
+      res.status(500).json({ message: "Failed to get discovery status" });
+    }
+  });
+
+  router.post("/discovery/interval", async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({ 
+        discoveryScanInterval: z.number().min(1).optional(),
+        identificationScanInterval: z.number().min(1).optional(),
+        routerDiscoveryInterval: z.number().min(1).optional()
+      });
+      
+      const intervals = schema.parse(req.body);
+      const result: Record<string, number> = {};
+      
+      if (intervals.discoveryScanInterval) {
+        result.discoveryScanInterval = schedulerService.setDiscoveryScanInterval(intervals.discoveryScanInterval);
+      }
+      
+      if (intervals.identificationScanInterval) {
+        result.identificationScanInterval = schedulerService.setIdentificationScanInterval(intervals.identificationScanInterval);
+      }
+      
+      if (intervals.routerDiscoveryInterval) {
+        result.routerDiscoveryInterval = schedulerService.setRouterDiscoveryInterval(intervals.routerDiscoveryInterval);
+      }
+      
+      res.json({ message: "Scan intervals updated", intervals: result });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid interval data", errors: error.errors });
+      }
+      console.error('Error updating scan intervals:', error);
+      res.status(500).json({ message: "Failed to update scan intervals" });
+    }
+  });
+
+  router.post("/oui-database/update", async (_req: Request, res: Response) => {
+    try {
+      const result = await deviceDiscoveryService.updateOuiDatabase();
+      if (result) {
+        res.json({ message: "OUI database updated successfully" });
+      } else {
+        res.status(500).json({ message: "Failed to update OUI database" });
+      }
+    } catch (error) {
+      console.error('Error updating OUI database:', error);
+      res.status(500).json({ message: "Failed to update OUI database" });
+    }
+  });
+
+  router.get("/mac-vendors/:mac", async (req: Request, res: Response) => {
+    try {
+      const macAddress = req.params.mac;
+      const vendor = await deviceDiscoveryService.lookupVendor(macAddress);
+      
+      if (vendor) {
+        res.json({ macAddress, vendor });
+      } else {
+        res.status(404).json({ message: "Vendor not found for MAC address" });
+      }
+    } catch (error) {
+      console.error('Error looking up MAC vendor:', error);
+      res.status(500).json({ message: "Failed to lookup MAC vendor" });
+    }
+  });
+
   app.use("/api", router);
 
   const httpServer = createServer(app);
