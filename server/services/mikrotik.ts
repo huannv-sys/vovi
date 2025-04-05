@@ -296,14 +296,43 @@ export class MikrotikService {
           uptime: resources.uptime || '0d 0h 0m'
         });
         
-        // Lưu metric mới
+        // Thu thập thông tin interfaces để tính lưu lượng mạng
+        const interfaces = await client.executeCommand('/interface/print');
+        let totalDownloadBandwidth = 0;
+        let totalUploadBandwidth = 0;
+        
+        if (Array.isArray(interfaces) && interfaces.length > 0) {
+          // Tính tổng bandwidth từ tất cả interfaces
+          interfaces.forEach(iface => {
+            // Chỉ tính các interface đang hoạt động và không phải loại bridge
+            const isRunning = iface.running === 'true' || iface.running === true;
+            const isDisabled = iface.disabled === 'true' || iface.disabled === true;
+            const type = iface.type || '';
+            
+            if (isRunning && !isDisabled && type !== 'bridge') {
+              // Lấy giá trị rx-byte và tx-byte
+              const rxBytes = parseInt(iface['rx-byte'] || '0', 10);
+              const txBytes = parseInt(iface['tx-byte'] || '0', 10);
+              
+              // Cộng dồn vào tổng bandwidth
+              totalDownloadBandwidth += rxBytes;
+              totalUploadBandwidth += txBytes;
+            }
+          });
+        }
+        
+        // Lưu metric mới với thêm thông tin bandwidth
         const metric: InsertMetric = {
           deviceId,
           timestamp: new Date(),
           cpuLoad: parseInt(resources['cpu-load'] || '0', 10),
           memoryUsage: parseInt(resources['free-memory'] || '0', 10),
           uptime: resources.uptime || '0d 0h 0m',
-          temperature: parseInt(resources.temperature || '0', 10)
+          temperature: parseInt(resources.temperature || '0', 10),
+          totalMemory: parseInt(resources['total-memory'] || '0', 10),
+          downloadBandwidth: totalDownloadBandwidth,
+          uploadBandwidth: totalUploadBandwidth,
+          boardTemp: routerBoard?.temperature ? parseInt(routerBoard.temperature, 10) : null
         };
         
         await storage.createMetric(metric);
