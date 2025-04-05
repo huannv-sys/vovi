@@ -9,3 +9,4 @@ export * from './device-classifier';
 export * from './traffic-collector';
 export * from './scheduler';
 export * from './dhcp';
+export * from './network-scanner';

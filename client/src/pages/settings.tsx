@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import NetworkScanner from "@/components/dashboard/NetworkScanner";
 
 const SettingsPage = () => {
   const { toast } = useToast();
@@ -427,6 +428,24 @@ const SettingsPage = () => {
                   <Button>Add Device</Button>
                 </div>
               )}
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Network Scanner</CardTitle>
+              <CardDescription>
+                Scan your network to automatically discover MikroTik devices
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <NetworkScanner 
+                onDeviceFound={(device) => {
+                  console.log('Device found:', device);
+                  // Handle the discovered device
+                  // You could open a modal to add it or add it automatically
+                }}
+              />
             </CardContent>
           </Card>
         </TabsContent>

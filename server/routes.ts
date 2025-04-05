@@ -12,7 +12,8 @@ import {
   deviceDiscoveryService,
   deviceIdentificationService,
   deviceClassifierService,
-  trafficCollectorService
+  trafficCollectorService,
+  networkScannerService
 } from "./services";
 import { interfaceHealthService } from "./services/interface_health";
 import { 
@@ -731,6 +732,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error reclassifying all devices:', error);
       res.status(500).json({ message: "Failed to reclassify all devices" });
+    }
+  });
+  
+  // Quét mạng để tìm thiết bị MikroTik
+  router.post("/network-scan", async (req: Request, res: Response) => {
+    try {
+      const { networks, autoDetect, concurrent } = req.body;
+      
+      if (!networks && !autoDetect) {
+        return res.status(400).json({ 
+          message: "Phải cung cấp danh sách mạng (networks) hoặc bật tự động phát hiện (autoDetect)" 
+        });
+      }
+      
+      let result;
+      if (autoDetect) {
+        result = await networkScannerService.autoDetectAndScan(concurrent);
+      } else {
+        result = await networkScannerService.scanNetworks(networks, concurrent);
+      }
+      
+      res.json({ 
+        message: `Đã tìm thấy ${result.length} thiết bị MikroTik`,
+        devices: result
+      });
+    } catch (error: any) {
+      console.error('Error scanning network:', error);
+      res.status(500).json({ message: "Lỗi khi quét mạng", error: error.message });
+    }
+  });
+  
+  // Quét một địa chỉ IP cụ thể
+  router.post("/network-scan/ip", async (req: Request, res: Response) => {
+    try {
+      const { ip } = req.body;
+      
+      if (!ip) {
+        return res.status(400).json({ message: "Phải cung cấp địa chỉ IP" });
+      }
+      
+      const result = await networkScannerService.scanSingleIp(ip);
+      
+      if (result.length > 0) {
+        res.json({ 
+          message: `Đã tìm thấy thiết bị MikroTik tại ${ip}`,
+          device: result[0]
+        });
+      } else {
+        res.json({ 
+          message: `Không tìm thấy thiết bị MikroTik tại ${ip}`,
+          device: null
+        });
+      }
+    } catch (error: any) {
+      console.error('Error scanning IP:', error);
+      res.status(500).json({ message: "Lỗi khi quét địa chỉ IP", error: error.message });
     }
   });
   
