@@ -67,7 +67,7 @@ export interface MikrotikInterface {
 export interface NetworkDeviceDetails {
   ipAddress: string;
   macAddress: string;
-  hostName?: string;
+  hostname?: string;  // Khớp với tên trường trong schema.ts
   interface?: string;
   vendor?: string;
   firstSeen?: Date;
@@ -89,4 +89,16 @@ export interface NetworkDeviceDetails {
     deviceClass?: string;
     gateway?: string;
   };
+  // Thêm các trường tương thích với networkDevices schema
+  hostName?: string;  // Trường cũ để tương thích ngược
+  deviceRole?: string;
+  txBytes?: number;
+  rxBytes?: number;
+  txRate?: number;
+  rxRate?: number;
+  description?: string;
+  isIdentified?: boolean;
+  identificationScore?: number;
+  isManaged?: boolean;
+  managedDeviceId?: number;
 }

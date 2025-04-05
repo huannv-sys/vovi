@@ -5,8 +5,8 @@ import { NetworkDeviceDetails } from '../mikrotik-api-types';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
-import * as network from 'network-js';
 import * as dns from 'dns';
+import * as net from 'net';
 import { promisify as utilPromisify } from 'util';
 
 const execAsync = promisify(exec);
@@ -27,7 +27,7 @@ class ClientManagementService {
       if (fs.existsSync(this.ouiDatabasePath)) {
         const data = fs.readFileSync(this.ouiDatabasePath, 'utf8');
         this.ouiDatabase = JSON.parse(data);
-        console.log(`Loaded OUI database with ${Object.keys(this.ouiDatabase).length} entries`);
+        console.log(`Loaded OUI database with ${this.ouiDatabase ? Object.keys(this.ouiDatabase).length : 0} entries`);
       } else {
         console.log('OUI database file not found. Vendor lookup will not be available.');
       }
@@ -123,8 +123,14 @@ class ClientManagementService {
       for (const port of commonPorts) {
         try {
           // Tạo một socket TCP và thử kết nối
-          const socket = new network.createConnection();
           const isConnected = await new Promise<boolean>((resolve) => {
+            // Tạo một socket TCP
+            const socket = net.createConnection({
+              host: ipAddress,
+              port: port,
+              timeout: 500
+            });
+            
             // Đặt timeout 500ms
             const timeout = setTimeout(() => {
               socket.destroy();
@@ -144,9 +150,6 @@ class ClientManagementService {
               socket.destroy();
               resolve(false);
             });
-            
-            // Thử kết nối
-            socket.connect(port, ipAddress);
           });
           
           if (isConnected) {
@@ -188,7 +191,7 @@ class ClientManagementService {
         // Update existing device with new information
         await db.update(networkDevices)
           .set({
-            hostName: device.hostName,
+            hostname: device.hostname || device.hostName,
             interface: device.interface,
             lastSeen: new Date(),
             // Keep other fields that might have been set previously
@@ -204,7 +207,7 @@ class ClientManagementService {
         .values({
           ipAddress: device.ipAddress,
           macAddress: device.macAddress,
-          hostName: device.hostName,
+          hostname: device.hostname || device.hostName,
           interface: device.interface,
           firstSeen: new Date(),
           lastSeen: new Date(),
@@ -260,13 +263,11 @@ class ClientManagementService {
       await db.update(networkDevices)
         .set({
           lastSeen: new Date(),
-          deviceData: {
-            ...device.deviceData,
-            traffic: {
-              ...trafficData,
+          deviceData: Object.assign({}, device.deviceData || {}, {
+            traffic: Object.assign({}, trafficData || {}, {
               lastUpdated: new Date().toISOString()
-            }
-          }
+            })
+          })
         })
         .where(eq(networkDevices.id, deviceId));
       
@@ -288,7 +289,7 @@ class ClientManagementService {
         {
           ipAddress: '192.168.1.1',
           macAddress: '00:11:22:33:44:55',
-          hostName: 'router.local',
+          hostname: 'router.local',
           vendor: 'MikroTik',
           deviceType: 'network',
           firstSeen: new Date(),
@@ -297,7 +298,7 @@ class ClientManagementService {
         {
           ipAddress: '192.168.1.10',
           macAddress: '00:1A:2B:3C:4D:5E',
-          hostName: 'desktop.local',
+          hostname: 'desktop.local',
           vendor: 'Dell Inc.',
           deviceType: 'computer',
           firstSeen: new Date(),
@@ -306,7 +307,7 @@ class ClientManagementService {
         {
           ipAddress: '192.168.1.20',
           macAddress: 'F0:F1:F2:F3:F4:F5',
-          hostName: 'smartphone.local',
+          hostname: 'smartphone.local',
           vendor: 'Apple Inc.',
           deviceType: 'smartphone',
           firstSeen: new Date(),

@@ -230,3 +230,52 @@ export async function classifyDevice(device: NetworkDeviceDetails): Promise<stri
     return null;
   }
 }
+
+/**
+ * Xác định các phương thức giám sát thích hợp cho một loại thiết bị
+ * @param role Vai trò/Loại thiết bị
+ * @returns Danh sách các phương thức giám sát
+ */
+export function getMonitoringMethodsForRole(role: string | null): string[] {
+  if (!role) return ['ping']; // Mặc định dùng ping nếu không có role
+  const roleLower = role.toLowerCase();
+  
+  switch (roleLower) {
+    case 'router':
+    case 'network':
+      return ['ping', 'snmp', 'api', 'traffic'];
+      
+    case 'switch':
+      return ['ping', 'snmp', 'traffic'];
+      
+    case 'access point':
+    case 'accesspoint':
+    case 'wireless':
+      return ['ping', 'snmp', 'traffic', 'wireless'];
+      
+    case 'server':
+      return ['ping', 'snmp', 'traffic', 'services'];
+      
+    case 'computer':
+    case 'desktop':
+    case 'laptop':
+      return ['ping', 'traffic'];
+      
+    case 'mobile':
+    case 'phone':
+    case 'smartphone':
+      return ['ping', 'traffic'];
+      
+    case 'camera':
+      return ['ping', 'rtsp'];
+      
+    case 'iot':
+      return ['ping', 'mqtt'];
+      
+    case 'printer':
+      return ['ping', 'snmp'];
+      
+    default:
+      return ['ping']; // Mặc định chỉ dùng ping cho các thiết bị không xác định
+  }
+}

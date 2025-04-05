@@ -203,13 +203,11 @@ class TrafficCollectorService {
       await db.update(networkDevices)
         .set({
           lastSeen: new Date(),
-          deviceData: {
-            ...device.deviceData,
-            traffic: {
-              ...trafficData,
+          deviceData: Object.assign({}, device.deviceData || {}, {
+            traffic: Object.assign({}, trafficData || {}, {
               lastUpdated: new Date().toISOString()
-            }
-          }
+            })
+          })
         })
         .where(eq(networkDevices.id, deviceId));
       

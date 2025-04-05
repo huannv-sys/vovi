@@ -342,7 +342,7 @@ const ClientsPage: React.FC = () => {
 
   const renderClientCard = (client: NetworkDevice) => {
     return (
-      <Card key={client.id} className="mb-3">
+      <Card className="mb-3">
         <Card.Body>
           <div className="d-flex justify-content-between align-items-center mb-2">
             <h5 className="mb-0">
@@ -584,7 +584,11 @@ const ClientsPage: React.FC = () => {
           ) : clients.length > 0 ? (
             <div>
               <p className="text-muted mb-3">Showing {clients.length} network clients</p>
-              {clients.map(client => renderClientCard(client))}
+              {clients.map(client => (
+                <div key={client.id}>
+                  {renderClientCard(client)}
+                </div>
+              ))}
             </div>
           ) : (
             <div className="text-center p-5 bg-light rounded">
