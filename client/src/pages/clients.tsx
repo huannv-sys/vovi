@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Card, Alert, Badge, Button, Spinner } from '../components/ui/bootstrap';
 import { useWebSocketContext } from '../lib/websocket-context';
 
+// Interface cho thiết bị mạng (client)
 interface NetworkDevice {
   id: number;
   ipAddress: string;
@@ -21,12 +22,58 @@ interface NetworkDevice {
   rxRate?: number;
 }
 
+// Interface cho thiết bị RouterOS
+interface RouterDevice {
+  id: number;
+  name: string;
+  ipAddress: string;
+  username?: string;
+  model?: string;
+  serialNumber?: string;
+  routerOsVersion?: string;
+  firmware?: string;
+  boardName?: string;
+  cpu?: string;
+  cpuCount?: number;
+  totalMemory?: string;
+  freeMemory?: string;
+  architecture?: string;
+  isOnline?: boolean;
+}
+
+// Interface cho thông tin interface của router
+interface RouterInterface {
+  id: string;
+  name: string;
+  type: string;
+  mtu?: number;
+  actualMtu?: number;
+  l2mtu?: number;
+  macAddress?: string;
+  running?: boolean;
+  disabled?: boolean;
+  comment?: string;
+  txPackets?: number;
+  rxPackets?: number;
+  txBytes?: number;
+  rxBytes?: number;
+  txDrops?: number;
+  rxDrops?: number;
+  txErrors?: number;
+  rxErrors?: number;
+  lastLinkUpTime?: string;
+  linkDowns?: number;
+  speed?: string;
+}
+
+// Interface cho thông báo alert
 interface AlertMessage {
   type: 'success' | 'danger' | 'warning' | 'info';
   message: string;
 }
 
 const ClientsPage: React.FC = () => {
+  // States cho quản lý client
   const [clients, setClients] = useState<NetworkDevice[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [scanning, setScanning] = useState<boolean>(false);
@@ -34,16 +81,22 @@ const ClientsPage: React.FC = () => {
   const [subnet, setSubnet] = useState<string>('');
   const [alert, setAlert] = useState<AlertMessage | null>(null);
   const [selectedClient, setSelectedClient] = useState<NetworkDevice | null>(null);
-  const [deviceDetails, setDeviceDetails] = useState<any | null>(null);
+  const [deviceDetails, setDeviceDetails] = useState<NetworkDevice | null>(null);
   const [detailsLoading, setDetailsLoading] = useState<boolean>(false);
+  
+  // States cho quản lý router
+  const [devices, setDevices] = useState<RouterDevice[]>([]);
+  const [selectedDevice, setSelectedDevice] = useState<RouterDevice | null>(null);
+  const [deviceId, setDeviceId] = useState<number | null>(null);
+  const [interfaceInfo, setInterfaceInfo] = useState<RouterInterface[]>([]);
   
   // Sử dụng hook để lấy context
   const { subscribe, unsubscribe } = useWebSocketContext();
 
   // Fetch clients on component mount
   useEffect(() => {
-    fetchClients();
-
+    fetchDevices();
+    
     // Subscribe to WebSocket events for real-time updates
     subscribe('network-devices-update', (data) => {
       if (data && Array.isArray(data)) {
@@ -71,17 +124,77 @@ const ClientsPage: React.FC = () => {
       unsubscribe('network-devices-update');
     };
   }, []);
+  
+  // Khi chọn thiết bị, tải dữ liệu client của thiết bị đó
+  useEffect(() => {
+    if (deviceId) {
+      fetchDeviceInterfaces(deviceId);
+      fetchClientsForDevice(deviceId);
+    }
+  }, [deviceId]);
 
-  const fetchClients = async () => {
+  // Tải danh sách thiết bị RouterOS
+  const fetchDevices = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/clients');
+      const response = await axios.get('/api/devices');
+      if (response.data && Array.isArray(response.data)) {
+        setDevices(response.data);
+        
+        // Nếu có thiết bị, tải thông tin client cho thiết bị đầu tiên
+        if (response.data.length > 0) {
+          setSelectedDevice(response.data[0]);
+          setDeviceId(response.data[0].id);
+        }
+      } else {
+        setDevices([]);
+      }
+      setLoading(false);
+    } catch (error) {
+      console.error('Error fetching devices:', error);
+      setAlert({
+        type: 'danger',
+        message: 'Failed to fetch devices. Please try again later.'
+      });
+      setLoading(false);
+    }
+  };
+  
+  // Tải danh sách interface của thiết bị
+  const fetchDeviceInterfaces = async (deviceId: number) => {
+    try {
+      const response = await axios.get(`/api/devices/${deviceId}/interfaces`);
+      if (response.data && Array.isArray(response.data)) {
+        setInterfaceInfo(response.data);
+      } else {
+        setInterfaceInfo([]);
+      }
+    } catch (error) {
+      console.error(`Error fetching interfaces for device ${deviceId}:`, error);
+      setInterfaceInfo([]);
+    }
+  };
+  
+  // Tải danh sách client theo thiết bị
+  const fetchClientsForDevice = async (deviceId: number) => {
+    try {
+      setLoading(true);
+      
+      // Tải từ API /api/devices/:id/clients 
+      const response = await axios.get(`/api/devices/${deviceId}/clients`);
+      
       if (response.data && Array.isArray(response.data)) {
         setClients(response.data);
-      } else if (response.data && response.data.devices) {
-        setClients(response.data.devices);
       } else {
-        setClients([]);
+        // Tải từ API /api/clients nếu API trên không có dữ liệu
+        const fallbackResponse = await axios.get('/api/clients');
+        if (fallbackResponse.data && Array.isArray(fallbackResponse.data)) {
+          setClients(fallbackResponse.data);
+        } else if (fallbackResponse.data && fallbackResponse.data.devices) {
+          setClients(fallbackResponse.data.devices);
+        } else {
+          setClients([]);
+        }
       }
       setLoading(false);
     } catch (error) {
@@ -501,15 +614,21 @@ const ClientsPage: React.FC = () => {
     );
   };
 
+  // Hàm xử lý khi chọn thiết bị khác
+  const handleDeviceChange = (device: any) => {
+    setSelectedDevice(device);
+    setDeviceId(device.id);
+  };
+  
   return (
     <div className="container-fluid p-4">
       <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>Network Clients</h1>
+        <h1>Thiết Bị Mạng</h1>
         <div>
           <Button 
             variant="outline-secondary" 
             className="me-2"
-            onClick={fetchClients}
+            onClick={() => deviceId ? fetchClientsForDevice(deviceId) : fetchDevices()}
             disabled={loading}
           >
             {loading ? <><Spinner animation="border" size="sm" /> Loading...</> : 'Refresh'}
@@ -535,22 +654,58 @@ const ClientsPage: React.FC = () => {
         </Alert>
       )}
       
+      {/* Router Selection */}
       <div className="mb-4">
         <Card>
           <Card.Body>
-            <Card.Title>Network Scanner</Card.Title>
+            <h5 className="mb-3">Chọn Router</h5>
+            <div className="row">
+              {devices.length > 0 ? (
+                <div className="d-flex flex-row mb-3 overflow-auto">
+                  {devices.map((device, index) => (
+                    <div
+                      key={device.id}
+                      className={`device-selector p-3 me-3 border rounded cursor-pointer ${selectedDevice && selectedDevice.id === device.id ? 'border-primary bg-light' : ''}`}
+                      style={{ minWidth: '220px', cursor: 'pointer' }}
+                      onClick={() => handleDeviceChange(device)}
+                    >
+                      <div className="d-flex align-items-center mb-2">
+                        <div className={`status-indicator me-2 ${device.isOnline ? 'bg-success' : 'bg-danger'}`} 
+                             style={{ width: '10px', height: '10px', borderRadius: '50%' }}></div>
+                        <h6 className="mb-0">{device.name}</h6>
+                      </div>
+                      <div className="small text-muted">{device.ipAddress}</div>
+                      <div className="small mt-1">{device.model || "Router"}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="col-12 text-center p-3 bg-light rounded">
+                  <p className="mb-2">Không tìm thấy router nào.</p>
+                </div>
+              )}
+            </div>
+          </Card.Body>
+        </Card>
+      </div>
+      
+      {/* Network Scanner */}
+      <div className="mb-4">
+        <Card>
+          <Card.Body>
+            <Card.Title>Quét Mạng</Card.Title>
             <div className="row g-3 align-items-center">
               <div className="col-md-6">
-                <label htmlFor="subnet" className="form-label">Subnet (optional)</label>
+                <label htmlFor="subnet" className="form-label">Subnet (tùy chọn)</label>
                 <input 
                   type="text" 
                   className="form-control" 
                   id="subnet" 
-                  placeholder="e.g. 192.168.1.0/24" 
+                  placeholder="Ví dụ: 192.168.1.0/24" 
                   value={subnet}
                   onChange={(e) => setSubnet(e.target.value)}
                 />
-                <div className="form-text">Leave empty to scan your local network</div>
+                <div className="form-text">Để trống để quét mạng cục bộ</div>
               </div>
               <div className="col-md-6 d-flex align-items-end">
                 <Button 
@@ -562,10 +717,10 @@ const ClientsPage: React.FC = () => {
                   {scanning ? (
                     <>
                       <Spinner animation="border" size="sm" /> 
-                      Scanning Network...
+                      Đang quét mạng...
                     </>
                   ) : (
-                    'Scan Network'
+                    'Quét mạng'
                   )}
                 </Button>
               </div>
@@ -573,6 +728,53 @@ const ClientsPage: React.FC = () => {
           </Card.Body>
         </Card>
       </div>
+      
+      {/* Interface Information */}
+      {selectedDevice && (
+        <div className="mb-4">
+          <Card>
+            <Card.Body>
+              <Card.Title>Thông Tin Interface</Card.Title>
+              {interfaceInfo.length > 0 ? (
+                <div className="table-responsive">
+                  <table className="table table-sm table-hover">
+                    <thead>
+                      <tr>
+                        <th>Tên</th>
+                        <th>Loại</th>
+                        <th>MAC</th>
+                        <th>Status</th>
+                        <th>TX/RX</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {interfaceInfo.map((iface) => (
+                        <tr key={iface.id}>
+                          <td>{iface.name}</td>
+                          <td>{iface.type}</td>
+                          <td>{iface.macAddress || 'N/A'}</td>
+                          <td>
+                            <Badge variant={iface.running ? "success" : "danger"}>
+                              {iface.running ? "Up" : "Down"}
+                            </Badge>
+                            {iface.disabled && <Badge variant="warning" className="ms-1">Disabled</Badge>}
+                          </td>
+                          <td>
+                            {iface.txBytes !== undefined && <div className="small">TX: {formatBytes(iface.txBytes)}</div>}
+                            {iface.rxBytes !== undefined && <div className="small">RX: {formatBytes(iface.rxBytes)}</div>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-center p-3 bg-light rounded">Không có thông tin interface</p>
+              )}
+            </Card.Body>
+          </Card>
+        </div>
+      )}
       
       <div className="row">
         <div className={selectedClient ? "col-md-8" : "col-md-12"}>
