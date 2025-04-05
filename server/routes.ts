@@ -698,7 +698,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // API để quét mạng tìm thiết bị
   router.post("/clients/scan", async (req: Request, res: Response) => {
     try {
-      const { subnet, autoDetect } = req.body;
+      const { subnet, autoDetect, routerId } = req.body;
+      
+      if (!routerId) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Router ID is required" 
+        });
+      }
+      
+      console.log(`Thực hiện quét mạng với routerId = ${routerId}, subnet = ${subnet || 'auto'}`);
+      
+      // Kiểm tra kết nối đến router
+      try {
+        const router = await storage.getDevice(routerId);
+        if (!router) {
+          return res.status(404).json({ 
+            success: false, 
+            message: "Router not found" 
+          });
+        }
+        
+        console.log(`Kiểm tra kết nối đến router ${router.name} (${router.ipAddress})`);
+        
+        // Thử kết nối đến router và lấy thông tin từ router
+        const mikrotikService = new MikrotikService();
+        const connected = await mikrotikService.connectToDevice(routerId);
+        
+        if (!connected) {
+          return res.status(400).json({ 
+            success: false, 
+            message: "Could not connect to router. Please check router credentials." 
+          });
+        }
+        
+        console.log(`Kết nối thành công đến router ${router.name}`);
+        
+        // Lấy thông tin ARP table
+        const arpEntries = await mikrotikService.getArpEntries(routerId);
+        console.log(`Tìm thấy ${arpEntries.length} bản ghi ARP từ router ${router.name}`);
+        
+        // Lấy thông tin DHCP leases
+        const dhcpLeases = await mikrotikService.getDhcpLeases(routerId);
+        console.log(`Tìm thấy ${dhcpLeases.length} bản ghi DHCP từ router ${router.name}`);
+        
+        // Ngắt kết nối
+        await mikrotikService.disconnectFromDevice(routerId);
+        
+        // Tiếp tục quá trình quét mạng bình thường
+        console.log(`Bắt đầu quét mạng với subnet = ${subnet || 'auto'}`);
+      } catch (routerError) {
+        console.error(`Lỗi khi kiểm tra router: ${routerError}`);
+      }
       
       // Quét mạng
       const devices = await clientManagementService.scanNetwork(subnet);
@@ -719,17 +770,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
           devices: addedDevices
         });
       } else {
-        res.json({
-          success: true,
-          message: "No devices found in network scan",
-          devices: []
-        });
+        // Thử phương pháp quét thay thế
+        console.log("Không tìm thấy thiết bị từ phương pháp quét thông thường, thử phương pháp quét trực tiếp");
+        
+        // Lấy thông tin neighbor trực tiếp từ router
+        const directDevices = await mikrotikService.getNetworkNeighbors({ id: routerId });
+        console.log(`Phát hiện ${directDevices.length} thiết bị bằng phương pháp trực tiếp`);
+        
+        if (directDevices.length > 0) {
+          // Thêm các thiết bị vào hệ thống
+          const addedDevices = [];
+          for (const device of directDevices) {
+            if (!device.macAddress) continue;
+            
+            // Tạo đối tượng NetworkDeviceDetails từ thông tin neighbor
+            const networkDevice = {
+              ipAddress: device.ipAddress || '',
+              macAddress: device.macAddress,
+              hostname: device.hostName || device.identity || undefined,
+              interface: device.interface || undefined,
+              deviceType: 'Unknown',
+              firstSeen: new Date(),
+              lastSeen: new Date(),
+              isOnline: true
+            };
+            
+            const added = await clientManagementService.addDeviceToMonitoring(networkDevice);
+            if (added) {
+              addedDevices.push(added);
+            }
+          }
+          
+          res.json({
+            success: true,
+            message: `Scanned network with direct method and found ${directDevices.length} devices`,
+            devices: addedDevices
+          });
+        } else {
+          res.json({
+            success: true,
+            message: "No devices found in network scan with any method",
+            devices: []
+          });
+        }
       }
     } catch (error) {
       console.error('Error scanning network:', error);
       res.status(500).json({ 
         success: false, 
-        message: "Failed to scan network" 
+        message: `Failed to scan network: ${error.message}` 
       });
     }
   });
