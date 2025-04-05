@@ -17,14 +17,17 @@ const formatBytes = (bytes: number) => {
 
 const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
   const { data: interfaces, isLoading } = useQuery<Interface[]>({ 
-    queryKey: deviceId ? [`/api/devices/${deviceId}/interfaces`] : null,
+    queryKey: [`/api/devices/${deviceId ?? 0}/interfaces`],
     enabled: !!deviceId,
   });
+
+  // Thêm log để debug
+  console.log('Interfaces data:', interfaces);
   
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       <div className="px-4 py-3 border-b border-gray-200">
-        <h3 className="font-medium text-neutral-dark">Tình trạng Interface</h3>
+        <h3 className="font-medium text-neutral-dark">Interface Status</h3>
       </div>
       <div className="p-4">
         {isLoading ? (
@@ -32,17 +35,17 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
           </div>
         ) : interfaces && interfaces.length > 0 ? (
-          interfaces.map((iface) => (
+          interfaces.map((iface: Interface) => (
             <div key={iface.id} className="mb-3 last:mb-0">
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center">
                   <div className={`w-2 h-2 rounded-full ${iface.isUp ? 'bg-green-500' : 'bg-red-500'} mr-2`}></div>
                   <span className="font-medium text-sm text-neutral-dark">
-                    {iface.name || 'Interface không tên'} ({iface.type || 'Unknown type'})
+                    {iface.name || 'Unknown Interface'}
                   </span>
                 </div>
                 <span className="text-xs text-gray-500">
-                  {iface.isUp ? iface.speed : 'Ngắt kết nối'}
+                  {iface.isUp ? iface.speed : 'Disconnected'}
                 </span>
               </div>
               <div className="flex items-center text-xs text-gray-500">
@@ -53,7 +56,7 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
           ))
         ) : (
           <div className="text-sm text-gray-500 text-center py-8">
-            Không có thông tin interface
+            No interfaces available
           </div>
         )}
       </div>
