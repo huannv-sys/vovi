@@ -12,8 +12,19 @@ interface WebSocketContextData {
   disconnect: () => void;
 }
 
+// Tạo một giá trị mặc định đầy đủ để tránh lỗi null
+const defaultContextValue: WebSocketContextData = {
+  status: 'CLOSED',
+  lastMessage: null,
+  sendMessage: () => false,
+  subscribe: () => () => {},
+  unsubscribe: () => {},
+  reconnect: () => {},
+  disconnect: () => {},
+};
+
 // Create context with default values
-const WebSocketContext = createContext<WebSocketContextData | null>(null);
+const WebSocketContext = createContext<WebSocketContextData>(defaultContextValue);
 
 // Context provider component
 interface WebSocketProviderProps {
@@ -33,11 +44,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
 // Custom hook to access WebSocket context
 export const useWebSocketContext = () => {
   const context = useContext(WebSocketContext);
-  
-  if (!context) {
-    throw new Error('useWebSocketContext must be used within a WebSocketProvider');
-  }
-  
+  // Không cần kiểm tra null vì đã có giá trị mặc định
   return context;
 };
 

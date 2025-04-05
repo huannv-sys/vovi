@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Card, Alert, Badge, Button, Spinner } from '../components/ui/bootstrap';
-import WebSocketContext, { useWebSocketContext } from '../lib/websocket-context';
+import { useWebSocketContext } from '../lib/websocket-context';
 
 interface NetworkDevice {
   id: number;
@@ -37,18 +37,8 @@ const ClientsPage: React.FC = () => {
   const [deviceDetails, setDeviceDetails] = useState<any | null>(null);
   const [detailsLoading, setDetailsLoading] = useState<boolean>(false);
   
-  // Sử dụng useContext trực tiếp để tránh lỗi
-  const websocketContext = useContext(WebSocketContext);
-  
-  if (!websocketContext) {
-    console.error('WebSocketContext not available');
-    return <div className="container p-5 text-center">
-      <h2>Không thể kết nối đến WebSocket</h2>
-      <p>Vui lòng thử tải lại trang</p>
-    </div>;
-  }
-  
-  const { subscribe, unsubscribe } = websocketContext;
+  // Sử dụng hook để lấy context
+  const { subscribe, unsubscribe } = useWebSocketContext();
 
   // Fetch clients on component mount
   useEffect(() => {
