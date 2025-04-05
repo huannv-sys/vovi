@@ -6,6 +6,21 @@ interface DeviceInfoTestProps {
   deviceId: number;
 }
 
+// Hàm để tạo đối tượng thiết bị an toàn không chứa thông tin nhạy cảm
+const getSafeDeviceInfo = (device: Device) => {
+  if (!device) return null;
+  
+  // Tạo bản sao của đối tượng thiết bị mà không có thông tin nhạy cảm
+  const safeCopy = {
+    ...device,
+    ipAddress: '****', // Ẩn địa chỉ IP
+    username: '****',  // Ẩn tên đăng nhập
+    password: '****'   // Ẩn mật khẩu
+  };
+  
+  return safeCopy;
+};
+
 const DeviceInfoTest: React.FC<DeviceInfoTestProps> = ({ deviceId }) => {
   // Fetch device info with explicit URL
   const { data: device, isLoading, error } = useQuery<Device>({ 
@@ -17,12 +32,19 @@ const DeviceInfoTest: React.FC<DeviceInfoTestProps> = ({ deviceId }) => {
   if (error) return <div>Error loading device: {String(error)}</div>;
   if (!device) return <div>No device data available</div>;
 
+  // Tạo phiên bản an toàn của thiết bị
+  const safeDevice = getSafeDeviceInfo(device);
+
   return (
     <div className="bg-gray-900 p-4 rounded-lg">
-      <h2 className="text-xl text-white mb-4">Device Information Test</h2>
+      <h2 className="text-xl text-white mb-4">Device Information</h2>
+      
+      <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700/50 rounded text-yellow-400 text-sm">
+        <strong>Lưu ý:</strong> Thông tin nhạy cảm (địa chỉ IP, tên đăng nhập, mật khẩu) đã được ẩn đi vì lý do bảo mật.
+      </div>
       
       <pre className="bg-gray-800 p-4 rounded text-green-400 overflow-auto max-h-[500px]">
-        {JSON.stringify(device, null, 2)}
+        {JSON.stringify(safeDevice, null, 2)}
       </pre>
 
       <div className="grid grid-cols-2 gap-4 mt-4">
