@@ -523,16 +523,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.get("/clients/:id", async (req: Request, res: Response) => {
     try {
       const deviceId = parseInt(req.params.id);
+      
+      if (isNaN(deviceId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid device ID"
+        });
+      }
+      
       const device = await clientManagementService.checkDeviceStatus(deviceId);
       
       if (!device) {
-        return res.status(404).json({ message: "Client not found" });
+        return res.status(404).json({ 
+          success: false,
+          message: "Client not found" 
+        });
       }
       
-      res.json(device);
+      // Get detailed information if available
+      let deviceDetails = device;
+      
+      try {
+        // Get device from DB to get any stored information
+        const dbDevice = await db.select()
+          .from(networkDevices)
+          .where(eq(networkDevices.id, deviceId))
+          .limit(1);
+          
+        if (dbDevice && dbDevice.length > 0) {
+          deviceDetails = {
+            ...dbDevice[0],
+            ...deviceDetails
+          };
+        }
+      } catch (detailsError) {
+        console.error(`Error getting device details for ID ${deviceId}:`, detailsError);
+      }
+      
+      res.json({
+        success: true,
+        device: deviceDetails
+      });
     } catch (error) {
       console.error('Error fetching client:', error);
-      res.status(500).json({ message: "Failed to fetch client" });
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to fetch client" 
+      });
+    }
+  });
+  
+  router.post("/clients/:id/identify", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      
+      if (isNaN(deviceId)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid device ID"
+        });
+      }
+      
+      // Identify the device
+      const device = await deviceIdentificationService.identifyDevice(deviceId);
+      
+      if (!device) {
+        return res.status(404).json({
+          success: false,
+          message: "Device not found or could not be identified"
+        });
+      }
+      
+      // Add role and monitoring method information
+      try {
+        const role = await deviceClassifierService.classifyDevice(deviceId);
+        const monitoringMethods = deviceClassifierService.getMonitoringMethodsForRole(role);
+        
+        const enhancedDevice = {
+          ...device,
+          role,
+          monitoring: monitoringMethods
+        };
+        
+        res.json({
+          success: true,
+          message: "Device identified successfully",
+          device: enhancedDevice
+        });
+      } catch (classifyError) {
+        console.error(`Error classifying device ID ${deviceId}:`, classifyError);
+        
+        res.json({
+          success: true,
+          message: "Device identified successfully, but classification failed",
+          device
+        });
+      }
+    } catch (error) {
+      console.error(`Error identifying device ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to identify device" 
+      });
     }
   });
   
@@ -599,6 +691,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         success: false, 
         message: "Failed to refresh device statuses" 
+      });
+    }
+  });
+  
+  // API để quét mạng tìm thiết bị
+  router.post("/clients/scan", async (req: Request, res: Response) => {
+    try {
+      const { subnet, autoDetect } = req.body;
+      
+      // Quét mạng
+      const devices = await clientManagementService.scanNetwork(subnet);
+      
+      if (devices.length > 0) {
+        // Thêm các thiết bị vào hệ thống
+        const addedDevices = [];
+        for (const device of devices) {
+          const added = await clientManagementService.addDeviceToMonitoring(device);
+          if (added) {
+            addedDevices.push(added);
+          }
+        }
+        
+        res.json({
+          success: true,
+          message: `Scanned network and found ${devices.length} devices`,
+          devices: addedDevices
+        });
+      } else {
+        res.json({
+          success: true,
+          message: "No devices found in network scan",
+          devices: []
+        });
+      }
+    } catch (error) {
+      console.error('Error scanning network:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to scan network" 
       });
     }
   });

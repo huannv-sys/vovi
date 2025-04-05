@@ -75,8 +75,14 @@ const ClientsPage: React.FC = () => {
   const fetchClients = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/network-devices');
-      setClients(response.data);
+      const response = await axios.get('/api/clients');
+      if (response.data && Array.isArray(response.data)) {
+        setClients(response.data);
+      } else if (response.data && response.data.devices) {
+        setClients(response.data.devices);
+      } else {
+        setClients([]);
+      }
       setLoading(false);
     } catch (error) {
       console.error('Error fetching network clients:', error);
@@ -92,17 +98,29 @@ const ClientsPage: React.FC = () => {
     try {
       setScanning(true);
       setAlert(null);
-      const response = await axios.post('/api/network-scan', { subnet: subnet || undefined });
-      setClients(prev => {
-        // Merge new devices with existing ones
-        const existingIds = new Set(prev.map(d => d.id));
-        const newDevices = response.data.filter((d: NetworkDevice) => !existingIds.has(d.id));
-        return [...prev, ...newDevices];
+      // Gửi yêu cầu quét dựa trên subnet hoặc tự động phát hiện
+      const response = await axios.post('/api/clients/scan', { 
+        subnet: subnet || undefined,
+        autoDetect: !subnet // Tự động phát hiện nếu không có subnet
       });
-      setAlert({
-        type: 'success',
-        message: `Network scan completed. Found ${response.data.length} devices.`
-      });
+      
+      if (response.data && response.data.devices) {
+        setClients(prev => {
+          // Merge new devices with existing ones
+          const existingIds = new Set(prev.map(d => d.id));
+          const newDevices = response.data.devices.filter((d: NetworkDevice) => !existingIds.has(d.id));
+          return [...prev, ...newDevices];
+        });
+        setAlert({
+          type: 'success',
+          message: `Network scan completed. Found ${response.data.devices.length} devices.`
+        });
+      } else {
+        setAlert({
+          type: 'info',
+          message: 'Network scan completed but no devices were found.'
+        });
+      }
       setScanning(false);
     } catch (error) {
       console.error('Error scanning network:', error);
@@ -172,8 +190,11 @@ const ClientsPage: React.FC = () => {
   const identifyDevice = async (clientId: number) => {
     try {
       setAlert(null);
-      const response = await axios.post(`/api/network-devices/${clientId}/identify`);
-      updateClientInList(response.data);
+      const response = await axios.post(`/api/clients/${clientId}/identify`);
+      
+      const updatedClient = response.data.device || response.data;
+      updateClientInList(updatedClient);
+      
       setAlert({
         type: 'success',
         message: 'Device identified successfully.'
@@ -181,7 +202,7 @@ const ClientsPage: React.FC = () => {
       
       // If we're viewing details of this client, update them too
       if (selectedClient && selectedClient.id === clientId) {
-        setDeviceDetails(response.data);
+        setDeviceDetails(updatedClient);
       }
     } catch (error) {
       console.error('Error identifying device:', error);
@@ -195,8 +216,11 @@ const ClientsPage: React.FC = () => {
   const collectTrafficData = async (clientId: number) => {
     try {
       setAlert(null);
-      const response = await axios.post(`/api/network-devices/${clientId}/collect-traffic`);
-      updateClientInList(response.data);
+      const response = await axios.post(`/api/clients/${clientId}/traffic`);
+      
+      const updatedClient = response.data.device || response.data;
+      updateClientInList(updatedClient);
+      
       setAlert({
         type: 'success',
         message: 'Traffic data collected successfully.'
@@ -204,7 +228,7 @@ const ClientsPage: React.FC = () => {
       
       // If we're viewing details of this client, update them too
       if (selectedClient && selectedClient.id === clientId) {
-        setDeviceDetails(response.data);
+        setDeviceDetails(updatedClient);
       }
     } catch (error) {
       console.error('Error collecting traffic data:', error);
@@ -220,9 +244,13 @@ const ClientsPage: React.FC = () => {
     setDeviceDetails(null);
     setDetailsLoading(true);
     
-    axios.get(`/api/network-devices/${client.id}`)
+    axios.get(`/api/clients/${client.id}`)
       .then(response => {
-        setDeviceDetails(response.data);
+        if (response.data && response.data.device) {
+          setDeviceDetails(response.data.device);
+        } else {
+          setDeviceDetails(response.data);
+        }
         setDetailsLoading(false);
       })
       .catch(error => {
