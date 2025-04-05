@@ -57,12 +57,12 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
           </div>
         ) : interfaces && interfaces.length > 0 ? (
           interfaces.map((iface: Interface) => (
-            <div key={iface.id} className={`mb-3 last:mb-0 border rounded-md p-2 ${iface.isUp ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'}`}>
+            <div key={iface.id} className={`mb-3 last:mb-0 border rounded-md p-2 ${iface.isUp ? 'border-green-500 bg-gray-800' : 'border-red-500 bg-gray-800'}`}>
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center">
                   <div className={`w-3 h-3 rounded-full ${iface.isUp ? 'bg-green-500' : 'bg-red-500'} mr-2 animate-pulse`}></div>
-                  <span className="font-bold text-sm text-neutral-dark">
-                    {iface.name || 'Unknown Interface'} {iface.type && <span className="text-xs font-semibold text-gray-600">({iface.type})</span>}
+                  <span className="font-bold text-sm text-white">
+                    {iface.name || 'Unknown Interface'} {iface.type && <span className="text-xs font-semibold text-gray-300">({iface.type})</span>}
                   </span>
                 </div>
                 <div className="flex items-center">
@@ -90,7 +90,7 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
                   </span>
                 </div>
                 {iface.healthScore != null && (
-                  <span className={`px-2 py-1 rounded-md font-bold border-2 ${getHealthScoreColorClass(iface.healthScore).replace('text-', 'text-')} border-current bg-white`}>
+                  <span className={`px-2 py-1 rounded-md font-bold ${getHealthScoreColorClass(iface.healthScore).replace('text-', 'bg-')} text-white`}>
                     {iface.healthScore}/100
                   </span>
                 )}

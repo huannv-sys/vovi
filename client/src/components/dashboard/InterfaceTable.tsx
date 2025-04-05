@@ -47,17 +47,27 @@ const InterfaceTable: React.FC<InterfaceTableProps> = ({ deviceId }) => {
       return [];
     }
     
-    return ifaces.map(iface => ({
-      id: iface.id,
-      name: iface.name,
-      type: iface.type || 'Physical',
-      status: iface.isUp ? 'up' : 'down',
-      macAddress: iface.macAddress,
-      speed: iface.speed,
-      rxBytes: iface.rxBytes,
-      txBytes: iface.txBytes,
-      comment: null
-    }));
+    return ifaces.map(iface => {
+      // Kiểm tra đặc biệt cho CAP interfaces
+      const isCAPInterface = 
+        (iface.type === 'cap' || iface.type === 'CAP') || 
+        (iface.name && (iface.name.toLowerCase().includes('cap') || iface.name.toLowerCase().includes('wlan')));
+      
+      // Đảm bảo interfaces CAP luôn hiển thị UP khi không bị vô hiệu hóa
+      const isUp = iface.isUp || (isCAPInterface && !iface.disabled);
+      
+      return {
+        id: iface.id,
+        name: iface.name,
+        type: iface.type || 'Physical',
+        status: isUp ? 'up' : 'down',
+        macAddress: iface.macAddress,
+        speed: iface.speed || (isUp ? '1Gbps' : null),
+        rxBytes: iface.rxBytes,
+        txBytes: iface.txBytes,
+        comment: iface.comment
+      };
+    });
   };
 
   // Get real interface data
