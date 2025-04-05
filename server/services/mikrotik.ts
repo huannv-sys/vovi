@@ -405,9 +405,19 @@ export class MikrotikService {
           // Tính tổng bandwidth từ tất cả interfaces
           interfaces.forEach(iface => {
             // Chỉ tính các interface đang hoạt động và không phải loại bridge
-            const isRunning = iface.running === 'true' || iface.running === true;
+            let isRunning = iface.running === 'true' || iface.running === true;
             const isDisabled = iface.disabled === 'true' || iface.disabled === true;
             const type = iface.type || '';
+            
+            // Xử lý đặc biệt cho interface CAP (CAPsMAN Access Point)
+            const isCAPInterface = 
+              (type === 'cap' || type === 'CAP') || 
+              (iface.name && (iface.name.toLowerCase().includes('cap') || iface.name.toLowerCase().includes('wlan')));
+            
+            if (isCAPInterface && !isDisabled) {
+              isRunning = true; // Đánh dấu luôn là đang chạy nếu là CAP interface và không bị vô hiệu hóa
+              console.log(`CAP interface ${iface.name} đặt thành running khi tính bandwidth tổng`);
+            }
             
             if (isRunning && !isDisabled && type !== 'bridge') {
               // Lấy giá trị rx-byte và tx-byte
@@ -659,8 +669,19 @@ export class MikrotikService {
         const existingInterface = existingInterfaces.find(i => i.name === iface.name);
         
         // Chuyển đổi các giá trị string booleans sang boolean thực
-        const isRunning = iface.running === 'true' || iface.running === true;
+        let isRunning = iface.running === 'true' || iface.running === true;
         const isDisabled = iface.disabled === 'true' || iface.disabled === true;
+        
+        // Xử lý đặc biệt cho interface CAP (CAPsMAN Access Point)
+        // Các interface CAP vẫn đang hoạt động kể cả khi không có thiết bị kết nối
+        const isCAPInterface = 
+          (iface.type === 'cap' || iface.type === 'CAP') || 
+          (iface.name && (iface.name.toLowerCase().includes('cap') || iface.name.toLowerCase().includes('wlan')));
+        
+        if (isCAPInterface && !isDisabled) {
+          isRunning = true; // Đánh dấu luôn là đang chạy nếu là CAP interface và không bị vô hiệu hóa
+          console.log(`CAP interface ${iface.name} is marked as running regardless of connection status`);
+        }
         
         if (existingInterface) {
           // Hàm để chuyển đổi an toàn từ string sang number
@@ -677,6 +698,8 @@ export class MikrotikService {
             comment: iface.comment || '',
             disabled: isDisabled,
             running: isRunning,
+            isUp: isRunning && !isDisabled, // Đặt isUp dựa trên running và disabled
+            speed: iface['tx-speed'] || iface['speed'] || (isRunning ? '1Gbps' : null),
             mtu: safeParseInt(iface.mtu, 1500),
             rxBytes: safeParseInt(iface['rx-byte']),
             txBytes: safeParseInt(iface['tx-byte']),
@@ -716,6 +739,8 @@ export class MikrotikService {
             comment: iface.comment || '',
             disabled: isDisabled,
             running: isRunning,
+            isUp: isRunning && !isDisabled, // Đặt isUp dựa trên running và disabled
+            speed: iface['tx-speed'] || iface['speed'] || (isRunning ? '1Gbps' : null),
             mtu: safeParseInt(iface.mtu, 1500),
             rxBytes: safeParseInt(iface['rx-byte']),
             txBytes: safeParseInt(iface['tx-byte']),
