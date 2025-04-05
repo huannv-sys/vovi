@@ -15,6 +15,7 @@ import { ArpEntry, DhcpLease } from '../mikrotik-api-types';
 
 // Sử dụng thư viện node-routeros để kết nối với RouterOS
 import * as RouterOS from 'node-routeros';
+import { networkDevices } from '@shared/schema';
 
 /**
  * Interface định nghĩa tham số kết nối
@@ -1379,7 +1380,15 @@ export async function getNetworkNeighbors(device: any): Promise<any[]> {
     const macAddresses = new Set<string>();
     
     // Lấy bản ghi ARP
+    console.log(`Lấy ARP entries từ thiết bị ${device.id || 'unknown'} (${device.ipAddress})`);
     const arpEntries = await getArpTable(device);
+    console.log(`Lấy được ${arpEntries.length} ARP entries từ thiết bị ${device.id || 'unknown'}`);
+    
+    // In ra thông tin chi tiết nếu có
+    if (arpEntries.length > 0) {
+      console.log(`Sample ARP entry from getNetworkNeighbors: ${JSON.stringify(arpEntries[0])}`);
+    }
+    
     for (const entry of arpEntries) {
       if (entry.macAddress && !macAddresses.has(entry.macAddress)) {
         macAddresses.add(entry.macAddress);
@@ -1387,13 +1396,22 @@ export async function getNetworkNeighbors(device: any): Promise<any[]> {
           ipAddress: entry.address,
           macAddress: entry.macAddress,
           interface: entry.interface,
-          source: 'arp'
+          source: 'arp',
+          deviceId: device.id
         });
       }
     }
     
     // Lấy DHCP leases
+    console.log(`Lấy DHCP leases từ thiết bị ${device.id || 'unknown'} (${device.ipAddress})`);
     const dhcpLeases = await getDhcpLeasesFromDevice(device);
+    console.log(`Lấy được ${dhcpLeases.length} DHCP leases từ thiết bị ${device.id || 'unknown'}`);
+    
+    // In ra thông tin chi tiết nếu có
+    if (dhcpLeases.length > 0) {
+      console.log(`Sample DHCP lease from getNetworkNeighbors: ${JSON.stringify(dhcpLeases[0])}`);
+    }
+    
     for (const lease of dhcpLeases) {
       if (lease.macAddress && !macAddresses.has(lease.macAddress)) {
         macAddresses.add(lease.macAddress);
@@ -1401,11 +1419,13 @@ export async function getNetworkNeighbors(device: any): Promise<any[]> {
           ipAddress: lease.address,
           macAddress: lease.macAddress,
           hostName: lease.hostName,
-          source: 'dhcp'
+          source: 'dhcp',
+          deviceId: device.id
         });
       }
     }
     
+    console.log(`Tổng cộng phát hiện ${neighbors.length} thiết bị láng giềng từ thiết bị ${device.id || 'unknown'}`);
     return neighbors;
   } catch (error) {
     console.error(`Error getting network neighbors for device ${device.id}:`, error);
@@ -1435,6 +1455,13 @@ export async function getArpEntries(deviceId: number): Promise<ArpEntry[]> {
       return [];
     }
     
+    console.log(`Found ${arpEntries.length} ARP entries for device ${deviceId}`);
+    
+    // In ra thông tin chi tiết nếu có
+    if (arpEntries.length > 0) {
+      console.log(`Sample ARP entry: ${JSON.stringify(arpEntries[0])}`);
+    }
+    
     return arpEntries.map((entry: any): ArpEntry => ({
       id: entry['.id'] || '',
       address: entry.address || '',
@@ -1444,7 +1471,8 @@ export async function getArpEntries(deviceId: number): Promise<ArpEntry[]> {
       disabled: entry.disabled || '',
       dynamic: entry.dynamic || '',
       invalid: entry.invalid || '',
-      lastSeen: new Date()
+      lastSeen: new Date(),
+      deviceId: deviceId  // Thêm deviceId để biết thiết bị nguồn
     }));
   } catch (error) {
     console.error(`Error getting ARP entries from device ${deviceId}:`, error);
@@ -1474,6 +1502,13 @@ export async function getDhcpLeases(deviceId: number): Promise<DhcpLease[]> {
       return [];
     }
     
+    console.log(`Found ${leases.length} DHCP leases for device ${deviceId}`);
+    
+    // In ra thông tin chi tiết nếu có
+    if (leases.length > 0) {
+      console.log(`Sample DHCP lease: ${JSON.stringify(leases[0])}`);
+    }
+    
     return leases.map((lease: any): DhcpLease => ({
       id: lease['.id'] || '',
       address: lease.address || '',
@@ -1486,7 +1521,8 @@ export async function getDhcpLeases(deviceId: number): Promise<DhcpLease[]> {
       disabled: lease.disabled === 'true',
       dynamic: lease.dynamic === 'true',
       blocked: lease.blocked === 'true',
-      lastSeen: new Date()
+      lastSeen: new Date(),
+      deviceId: deviceId  // Thêm deviceId để biết thiết bị nguồn
     }));
   } catch (error) {
     console.error(`Error getting DHCP leases from device ${deviceId}:`, error);

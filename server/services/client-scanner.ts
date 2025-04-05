@@ -108,6 +108,8 @@ export async function detectNewDevices(): Promise<NetworkDeviceDetails[]> {
   const newDevices: NetworkDeviceDetails[] = [];
   const currentMacs = new Set<string>();
   
+  console.log("Bắt đầu phát hiện thiết bị mới...");
+  
   // Xử lý bản ghi ARP
   const arpEntries = await getAllArpEntries();
   for (const entry of arpEntries) {

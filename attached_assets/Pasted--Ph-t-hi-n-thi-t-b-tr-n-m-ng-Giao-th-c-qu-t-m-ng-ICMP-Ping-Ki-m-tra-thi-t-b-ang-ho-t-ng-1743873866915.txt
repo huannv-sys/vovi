@@ -1,0 +1,115 @@
+ Phát hiện thiết bị trên mạng
+Giao thức quét mạng:
+
+ICMP (Ping): Kiểm tra thiết bị đang hoạt động.
+
+SNMP (Simple Network Management Protocol): Thu thập thông tin chi tiết (phiên bản firmware, model, trạng thái).
+
+ARP (Address Resolution Protocol): Xác định địa chỉ MAC và IP.
+
+UPnP (Universal Plug and Play): Phát hiện thiết bị IoT hoặc thiết bị gia đình.
+
+Quét cổng mạng: Xác định dịch vụ đang chạy (ví dụ: cổng 80 cho HTTP, 443 cho HTTPS, 22 cho SSH).
+
+2. Nhận diện hãng sản xuất
+Phân tích OUI (Organizationally Unique Identifier):
+
+Dựa trên 3 byte đầu của địa chỉ MAC để xác định hãng sản xuất (ví dụ: 00:1C:42 là của Apple).
+
+Tra cứu thông qua SNMP:
+
+Sử dụng OID (Object Identifier) như sysDescr hoặc sysObjectID để lấy thông tin thiết bị.
+
+Phân tích phản hồi HTTP/HTTPS:
+
+Kiểm tra header (ví dụ: Server: Cisco-IOS) hoặc nội dung trang web (nếu thiết bị có giao diện web).
+
+3. Hỗ trợ API của hãng
+Kết nối API đặc thù:
+
+Sử dụng RESTful API/SDK do hãng cung cấp (ví dụ: Cisco DNA Center API, Huawei eSight API).
+
+Tích hợp xác thực (OAuth, API key) để truy vấn thông tin thiết bị.
+
+4. Tương thích đa giao thức
+Hỗ trợ giao thức chuyên biệt:
+
+Telnet/SSH để đọc thông tin qua CLI (ví dụ: thiết bị mạng Cisco/Juniper).
+
+Modbus/TCP cho thiết bị công nghiệp.
+
+MQTT/CoAP cho thiết bị IoT.
+
+5. Tự động hóa và lập lịch
+Lập lịch quét định kỳ:
+
+Cron job (Linux) hoặc Task Scheduler (Windows).
+
+Kích hoạt sự kiện:
+
+Quét khi phát hiện thiết bị mới kết nối qua DHCP hoặc ARP.
+
+6. Xử lý đa dạng thiết bị
+Phân loại thiết bị:
+
+Router, switch, camera IP, cảm biến IoT...
+
+Tùy chỉnh profile quét:
+
+Áp dụng chính sách quét khác nhau cho từng loại thiết bị (ví dụ: quét SNMP cho router, quét HTTP cho camera).
+
+7. Bảo mật và xác thực
+Hỗ trợ cơ chế xác thực:
+
+SNMPv3 với mã hóa AES.
+
+SSH key-based authentication.
+
+Lưu trữ an toàn thông tin đăng nhập (ví dụ: dùng vault).
+
+8. Báo cáo và cảnh báo
+Log chi tiết:
+
+Ghi lại lịch sử quét, lỗi kết nối, thiết bị không tương thích.
+
+Cảnh báo tự động:
+
+Thông báo qua email/SMS khi phát hiện thiết bị lạ hoặc lỗi bảo mật.
+
+9. Tùy chỉnh phạm vi quét
+IP Range/Subnet:
+
+Cho phép người dùng nhập dải IP hoặc subnet cần quét.
+
+Lọc theo hãng:
+
+Chỉ tập trung vào thiết bị có OUI hoặc tên hãng cụ thể.
+
+10. Cập nhật cơ sở dữ liệu
+Cập nhật OUI và OID:
+
+Đồng bộ với cơ sở dữ liệu IEEE để nhận diện hãng mới.
+
+Hỗ trợ IPv6:
+
+Quét cả địa chỉ IPv6 nếu mạng triển khai.
+
+11. Giao diện linh hoạt
+CLI/GUI:
+
+Giao diện dòng lệnh cho tự động hóa hoặc GUI để trực quan hóa.
+
+Tích hợp hệ thống có sẵn:
+
+Xuất dữ liệu sang định dạng JSON/CSV hoặc kết nối với nền tảng như Nagios, Zabbix.
+
+Ví dụ thực tế:
+NMAP Script:
+
+bash
+Copy
+nmap --script snmp-info -p 161 192.168.1.0/24
+Quét SNMP để xác định thiết bị Cisco.
+
+Sử dụng DHCP Log:
+Phân tích log DHCP server để phát hiện thiết bị mới kết nối.
