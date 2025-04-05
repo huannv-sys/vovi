@@ -271,6 +271,12 @@ export class MikrotikService {
         
         const resources = resourcesData[0];
         
+        // Thu thập thông tin router-board để lấy serial number
+        const routerBoardData = await client.executeCommand('/system/routerboard/print');
+        const routerBoard = Array.isArray(routerBoardData) && routerBoardData.length > 0 
+          ? routerBoardData[0]
+          : null;
+        
         // Thu thập identity
         const identityData = await client.executeCommand('/system/identity/print');
         const identity = Array.isArray(identityData) && identityData.length > 0 
@@ -282,9 +288,9 @@ export class MikrotikService {
           isOnline: true,
           lastSeen: new Date(),
           model: resources.board || resources['board-name'] || null,
-          serialNumber: resources['serial-number'] || null,
+          serialNumber: routerBoard?.['serial-number'] || resources['serial-number'] || null,
           routerOsVersion: resources.version || null,
-          firmware: resources['firmware-type'] || null,
+          firmware: resources['firmware-type'] || routerBoard?.['firmware-type'] || null,
           cpu: resources['cpu-load'] || 0,
           totalMemory: resources['total-memory'] || 0,
           uptime: resources.uptime || '0d 0h 0m'
