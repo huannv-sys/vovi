@@ -12,7 +12,7 @@ import InterfaceTable from "@/components/dashboard/InterfaceTable";
 import DeviceInfo from "@/components/dashboard/DeviceInfo";
 import ActiveAlerts from "@/components/dashboard/ActiveAlerts";
 import SystemMetrics from "@/components/dashboard/SystemMetrics";
-import DeviceInfoTest from "@/components/dashboard/DeviceInfoTest";
+// import DeviceInfoTest from "@/components/dashboard/DeviceInfoTest"; // Đã ẩn component này
 
 // Chế độ xem dashboard
 type ViewMode = 'basic' | 'advanced' | 'multi';
@@ -189,13 +189,7 @@ const Dashboard = () => {
       ) : viewMode === 'advanced' ? (
         /* Advanced View - Xem nâng cao một thiết bị */
         <>
-          {/* DeviceInfoTest Component - For troubleshooting */}
-          {selectedDeviceId && (
-            <div className="mb-6 bg-gray-800 rounded-lg p-4 border border-gray-700">
-              <h2 className="text-lg font-medium text-white mb-4">Device Info Test Component</h2>
-              <DeviceInfoTest deviceId={selectedDeviceId} />
-            </div>
-          )}
+          {/* DeviceInfoTest Component đã bị ẩn theo yêu cầu */}
           
           {/* System Metrics (Gauges and Line Chart) */}
           <SystemMetrics deviceId={selectedDeviceId} />
