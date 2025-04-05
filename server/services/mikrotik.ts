@@ -442,16 +442,87 @@ export class MikrotikService {
         
         // Thu thập thông tin CAPsMAN nếu có
         try {
-          const capsmanData = await client.executeCommand('/caps-man/interface/print');
+          console.log(`Kiểm tra CAPsMAN trên thiết bị ${deviceId}...`);
           
-          if (Array.isArray(capsmanData) && capsmanData.length > 0) {
-            await storage.updateDevice(deviceId, { hasCAPsMAN: true });
-            await capsmanService.collectCapsmanStats(deviceId);
-          } else {
-            await storage.updateDevice(deviceId, { hasCAPsMAN: false });
+          // Kiểm tra cách 1: Kiểm tra CAPsMAN Manager
+          try {
+            console.log(`Đang kiểm tra CAPsMAN manager...`);
+            const capsmanManagerData = await client.executeCommand('/caps-man/manager/print');
+            console.log(`CAPsMAN manager data:`, capsmanManagerData);
+            
+            if (Array.isArray(capsmanManagerData) && capsmanManagerData.length > 0) {
+              const manager = capsmanManagerData[0];
+              const isEnabled = manager.enabled === 'true' || manager.enabled === true;
+              console.log(`CAPsMAN manager enabled: ${isEnabled}`);
+              
+              await storage.updateDevice(deviceId, { hasCAPsMAN: true });
+              console.log(`Thiết lập hasCAPsMAN = true cho thiết bị ${deviceId} dựa vào kết quả kiểm tra manager`);
+              
+              // Nếu được kích hoạt, thu thập thêm thông tin
+              if (isEnabled) {
+                await capsmanService.collectCapsmanStats(deviceId);
+              }
+              
+              return; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
+            }
+          } catch (managerError) {
+            console.warn(`Không tìm thấy CAPsMAN manager:`, managerError);
           }
+          
+          // Kiểm tra cách 2: Kiểm tra CAPsMAN Configuration
+          try {
+            console.log(`Đang kiểm tra CAPsMAN configurations...`);
+            const capsmanConfigData = await client.executeCommand('/caps-man/configuration/print');
+            console.log(`CAPsMAN configurations data:`, capsmanConfigData);
+            
+            if (Array.isArray(capsmanConfigData) && capsmanConfigData.length > 0) {
+              console.log(`Found ${capsmanConfigData.length} CAPsMAN configurations`);
+              await storage.updateDevice(deviceId, { hasCAPsMAN: true });
+              console.log(`Thiết lập hasCAPsMAN = true cho thiết bị ${deviceId} dựa vào kết quả kiểm tra configurations`);
+              return; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
+            }
+          } catch (configError) {
+            console.warn(`Không tìm thấy CAPsMAN configurations:`, configError);
+          }
+          
+          // Kiểm tra cách 3: Kiểm tra CAPsMAN Access Points
+          try {
+            console.log(`Đang kiểm tra CAPsMAN access-point...`);
+            const capsmanAPData = await client.executeCommand('/caps-man/access-point/print');
+            console.log(`CAPsMAN access-point data:`, capsmanAPData);
+            
+            if (Array.isArray(capsmanAPData) && capsmanAPData.length > 0) {
+              console.log(`Found ${capsmanAPData.length} CAPsMAN access points`);
+              await storage.updateDevice(deviceId, { hasCAPsMAN: true });
+              console.log(`Thiết lập hasCAPsMAN = true cho thiết bị ${deviceId} dựa vào kết quả kiểm tra access-point`);
+              return; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
+            }
+          } catch (apError) {
+            console.warn(`Không tìm thấy CAPsMAN access-point:`, apError);
+          }
+          
+          // Kiểm tra cách 4: Kiểm tra CAPsMAN Interfaces
+          try {
+            console.log(`Đang kiểm tra CAPsMAN interfaces...`);
+            const capsmanInterfaceData = await client.executeCommand('/caps-man/interface/print');
+            console.log(`CAPsMAN interface data:`, capsmanInterfaceData);
+            
+            if (Array.isArray(capsmanInterfaceData) && capsmanInterfaceData.length > 0) {
+              console.log(`Found ${capsmanInterfaceData.length} CAPsMAN interfaces`);
+              await storage.updateDevice(deviceId, { hasCAPsMAN: true });
+              console.log(`Thiết lập hasCAPsMAN = true cho thiết bị ${deviceId} dựa vào kết quả kiểm tra interfaces`);
+              return; // Thoát khỏi quá trình kiểm tra nếu đã xác định được
+            }
+          } catch (interfaceError) {
+            console.warn(`Không tìm thấy CAPsMAN interfaces:`, interfaceError);
+          }
+          
+          // Nếu không tìm thấy bất kỳ thành phần nào của CAPsMAN
+          console.log(`Không tìm thấy bất kỳ thành phần CAPsMAN nào trên thiết bị ${deviceId}`);
+          await storage.updateDevice(deviceId, { hasCAPsMAN: false });
+          
         } catch (error) {
-          console.warn(`Device ${deviceId} does not have CAPsMAN:`, error);
+          console.error(`Lỗi không xác định khi kiểm tra CAPsMAN cho thiết bị ${deviceId}:`, error);
           await storage.updateDevice(deviceId, { hasCAPsMAN: false });
         }
         
