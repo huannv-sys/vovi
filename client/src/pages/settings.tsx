@@ -439,6 +439,57 @@ const SettingsPage = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              <div className="card shadow-sm">
+                <div className="card-header bg-secondary text-white d-flex align-items-center">
+                  <i className="me-2 fas fa-network-wired"></i>
+                  <h5 className="mb-0">Quét mạng tìm thiết bị MikroTik</h5>
+                </div>
+                <div className="card-body">
+                  <div className="mb-3">
+                    <div className="form-check form-switch">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="autoDetect"
+                      />
+                      <label className="form-check-label" htmlFor="autoDetect">
+                        Tự động phát hiện mạng
+                      </label>
+                    </div>
+                  </div>
+                  
+                  <div className="mb-3">
+                    <label className="form-label">Dải mạng cần quét (định dạng CIDR)</label>
+                    <div className="mb-2">
+                      <span className="badge bg-info me-2 mb-2 p-2">
+                        192.168.1.0/24
+                        <button
+                          className="ms-2 btn-close btn-close-white"
+                          style={{ fontSize: '0.5rem' }}
+                          aria-label="Xóa"
+                        ></button>
+                      </span>
+                    </div>
+                    <div className="input-group">
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Ví dụ: 192.168.1.0/24"
+                      />
+                      <button className="btn btn-outline-secondary">
+                        <i className="fas fa-plus"></i> Thêm
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div className="d-grid gap-2">
+                    <button className="btn btn-primary d-flex align-items-center justify-content-center">
+                      <i className="fas fa-search me-2"></i> Bắt đầu quét
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
               <NetworkScanner 
                 onDeviceFound={(device) => {
                   console.log('Device found:', device);
