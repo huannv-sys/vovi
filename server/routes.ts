@@ -722,7 +722,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`Kiểm tra kết nối đến router ${router.name} (${router.ipAddress})`);
         
         // Thử kết nối đến router và lấy thông tin từ router
-        const mikrotikService = new MikrotikService();
         const connected = await mikrotikService.connectToDevice(routerId);
         
         if (!connected) {
