@@ -10,10 +10,11 @@ export * from './traffic-collector';
 export * from './scheduler';
 export * from './dhcp';
 export * from './network-scanner';
-export * from './client-management';
+
+// Import từ client-management service
+import clientManagementService from './client-management';
 
 // Alias exports
-import * as clientManagementService from './client-management';
 import * as deviceIdentificationService from './device-identification';
 import * as deviceClassifierService from './device-classifier';
 import * as trafficCollectorService from './traffic-collector';

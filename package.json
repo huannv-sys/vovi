@@ -64,6 +64,7 @@
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
+    "network-js": "^2.1.0",
     "node-routeros": "^1.6.8",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
