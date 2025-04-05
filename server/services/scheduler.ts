@@ -332,6 +332,61 @@ export class SchedulerService {
       routerDiscoveryInterval: this.routerDiscoveryIntervalMs / (60 * 1000)
     };
   }
+  
+  /**
+   * Cập nhật khoảng thời gian polling cho tất cả các thiết bị
+   * @param intervalMs Khoảng thời gian tính bằng millisecond
+   */
+  public setPollingInterval(intervalMs: number) {
+    // Đảm bảo không nhỏ hơn 5 giây
+    if (intervalMs < 5000) intervalMs = 5000;
+    
+    this.discoveryScanIntervalMs = intervalMs;
+    this.identificationScanIntervalMs = intervalMs * 3; // Nhận diện ít thường xuyên hơn
+    this.routerDiscoveryIntervalMs = intervalMs * 2; // Quét router với tần suất trung bình
+    
+    // Khởi động lại các quá trình lập lịch
+    this.startDiscoveryScan();
+    this.startIdentificationScan();
+    this.startRouterDiscovery();
+    
+    console.log(`All polling intervals updated: discovery=${intervalMs}ms, identification=${intervalMs * 3}ms, router=${intervalMs * 2}ms`);
+    return intervalMs;
+  }
+  
+  /**
+   * Cập nhật số lượng thiết bị tối đa được xử lý đồng thời
+   * @param count Số lượng thiết bị tối đa
+   */
+  public setMaxConcurrentDevices(count: number) {
+    if (count < 1) count = 1;
+    // Lưu cấu hình này và cập nhật các dịch vụ khác nếu cần
+    console.log(`Max concurrent devices set to ${count}`);
+    return count;
+  }
+  
+  /**
+   * Lấy trạng thái polling của các thiết bị
+   */
+  public getDevicePollingStatus() {
+    return {
+      discoveryStatus: {
+        isRunning: this.isDiscoveryRunning,
+        interval: this.discoveryScanIntervalMs,
+        nextScheduled: this.discoveryScanInterval ? 'Active' : 'Stopped'
+      },
+      identificationStatus: {
+        isRunning: this.isIdentificationRunning,
+        interval: this.identificationScanIntervalMs,
+        nextScheduled: this.identificationScanInterval ? 'Active' : 'Stopped'
+      },
+      routerDiscoveryStatus: {
+        isRunning: this.isRouterDiscoveryRunning,
+        interval: this.routerDiscoveryIntervalMs,
+        nextScheduled: this.routerDiscoveryInterval ? 'Active' : 'Stopped'
+      }
+    };
+  }
 }
 
 // Xuất một thể hiện duy nhất của service lập lịch

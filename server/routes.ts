@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { WebSocketServer, WebSocket } from 'ws';
 import { storage } from "./storage";
 import { 
   mikrotikService, 
@@ -9,21 +10,26 @@ import {
   schedulerService, 
   deviceInfoService,
   deviceDiscoveryService,
-  deviceIdentificationService
+  deviceIdentificationService,
+  deviceClassifierService,
+  trafficCollectorService
 } from "./services";
 import { interfaceHealthService } from "./services/interface_health";
 import { 
   insertDeviceSchema, 
   insertAlertSchema,
-  insertNetworkDeviceSchema
+  insertNetworkDeviceSchema,
+  networkDevices
 } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const router = express.Router();
 
   // Start the scheduler service once the server starts
-  schedulerService.start();
+  schedulerService.initialize();
 
   // Device routes
   router.get("/devices", async (req: Request, res: Response) => {
@@ -572,7 +578,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Network device not found" });
       }
       
-      res.json(device);
+      // Phân loại thiết bị sau khi đã nhận diện
+      const role = await deviceClassifierService.classifyDevice(deviceId);
+      
+      // Thêm thông tin về vai trò và phương thức giám sát phù hợp
+      const monitoringMethods = deviceClassifierService.getMonitoringMethodsForRole(role);
+      
+      res.json({
+        ...device,
+        role,
+        monitoring: monitoringMethods
+      });
     } catch (error) {
       console.error('Error identifying network device:', error);
       res.status(500).json({ message: "Failed to identify network device" });
@@ -678,9 +694,169 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to lookup MAC vendor" });
     }
   });
+  
+  // Phân loại thiết bị mạng dựa trên thông tin nhận diện
+  router.post("/network-devices/:id/classify", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      const role = await deviceClassifierService.classifyDevice(deviceId);
+      
+      if (!role) {
+        return res.status(404).json({ message: "Network device not found or could not be classified" });
+      }
+      
+      // Lấy thông tin về phương pháp giám sát phù hợp
+      const monitoringMethods = deviceClassifierService.getMonitoringMethodsForRole(role);
+      
+      res.json({ 
+        deviceId, 
+        role,
+        monitoring: monitoringMethods,
+        message: `Device classified as ${role}`
+      });
+    } catch (error) {
+      console.error('Error classifying network device:', error);
+      res.status(500).json({ message: "Failed to classify network device" });
+    }
+  });
+  
+  // Phân loại lại tất cả các thiết bị đã nhận diện
+  router.post("/network-devices/reclassify-all", async (_req: Request, res: Response) => {
+    try {
+      const count = await deviceClassifierService.reclassifyAllDevices();
+      res.json({ 
+        message: `Successfully reclassified ${count} devices`,
+        count
+      });
+    } catch (error) {
+      console.error('Error reclassifying all devices:', error);
+      res.status(500).json({ message: "Failed to reclassify all devices" });
+    }
+  });
+  
+  // Thu thập dữ liệu lưu lượng mạng cho thiết bị cụ thể
+  router.post("/network-devices/:id/collect-traffic", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      const result = await trafficCollectorService.collectTrafficByDeviceRole(deviceId);
+      
+      if (!result || !result.success) {
+        return res.status(404).json({ 
+          message: "Failed to collect traffic data", 
+          details: result ? result.message : "Unknown error" 
+        });
+      }
+      
+      // Lưu dữ liệu lưu lượng vào cơ sở dữ liệu
+      await trafficCollectorService.saveTrafficData(deviceId, result.data);
+      
+      res.json({
+        deviceId,
+        method: result.method,
+        data: result.data,
+        message: `Successfully collected traffic data using ${result.method} method`
+      });
+    } catch (error) {
+      console.error('Error collecting traffic data:', error);
+      res.status(500).json({ message: "Failed to collect traffic data" });
+    }
+  });
 
   app.use("/api", router);
 
   const httpServer = createServer(app);
+  
+  // WebSocket server setup
+  const wss = new WebSocketServer({ 
+    server: httpServer, 
+    path: '/ws'
+  });
+  
+  // Store active connections and their subscriptions
+  const clients = new Map<WebSocket, Set<string>>();
+  
+  wss.on('connection', (ws) => {
+    console.log('WebSocket client connected');
+    
+    // Initialize client subscriptions
+    clients.set(ws, new Set());
+    
+    ws.on('message', (message) => {
+      try {
+        const data = JSON.parse(message.toString());
+        
+        if (data.action === 'subscribe' && typeof data.topic === 'string') {
+          // Add subscription to client
+          const topics = clients.get(ws);
+          if (topics) {
+            topics.add(data.topic);
+            console.log(`Client subscribed to topic: ${data.topic}`);
+          }
+        } else if (data.action === 'unsubscribe' && typeof data.topic === 'string') {
+          // Remove subscription from client
+          const topics = clients.get(ws);
+          if (topics) {
+            topics.delete(data.topic);
+            console.log(`Client unsubscribed from topic: ${data.topic}`);
+          }
+        }
+      } catch (err) {
+        console.error('Invalid WebSocket message:', err);
+      }
+    });
+    
+    ws.on('close', () => {
+      // Remove client from active connections
+      clients.delete(ws);
+      console.log('WebSocket client disconnected');
+    });
+    
+    // Send initial connection confirmation
+    ws.send(JSON.stringify({
+      type: 'connection_established',
+      timestamp: new Date().toISOString()
+    }));
+  });
+  
+  // Helper function to broadcast to all subscribed clients
+  const broadcastToTopic = (topic: string, data: any) => {
+    const message = JSON.stringify(data);
+    
+    for (const [client, topics] of clients.entries()) {
+      if (client.readyState === WebSocket.OPEN && topics.has(topic)) {
+        client.send(message);
+      }
+    }
+  };
+  
+  // Expose broadcast function globally
+  (global as any).broadcastToTopic = broadcastToTopic;
+  
+  // Subscribe to metric collection events
+  const originalCollectTrafficByDeviceRole = trafficCollectorService.collectTrafficByDeviceRole;
+  trafficCollectorService.collectTrafficByDeviceRole = async function(deviceId: number) {
+    const result = await originalCollectTrafficByDeviceRole.call(this, deviceId);
+    
+    // If collection was successful, broadcast to subscribed clients
+    if (result && result.success) {
+      const topic = `device_traffic_${deviceId}`;
+      const data = {
+        type: 'traffic_update',
+        deviceId,
+        timestamp: new Date().toISOString(),
+        downloadBandwidth: result.data.trafficData[0]?.download || 0,
+        uploadBandwidth: result.data.trafficData[0]?.upload || 0,
+        method: result.method
+      };
+      
+      broadcastToTopic(topic, data);
+      
+      // Also broadcast to the global traffic topic
+      broadcastToTopic('all_traffic', data);
+    }
+    
+    return result;
+  };
+  
   return httpServer;
 }

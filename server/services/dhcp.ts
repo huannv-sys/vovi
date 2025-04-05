@@ -1,5 +1,5 @@
 import * as RouterOS from 'node-routeros';
-import { MikrotikClient } from './mikrotik';
+import { storage } from '../storage';
 
 /**
  * Interface cho DHCP Lease
@@ -23,12 +23,6 @@ export interface DHCPLease {
  * Dịch vụ quản lý DHCP
  */
 export class DHCPService {
-  private mikrotikClient: MikrotikClient;
-  
-  constructor() {
-    this.mikrotikClient = new MikrotikClient();
-  }
-  
   /**
    * Lấy danh sách DHCP leases từ thiết bị MikroTik
    * @param deviceId ID của thiết bị
@@ -37,18 +31,18 @@ export class DHCPService {
   async getDHCPLeases(deviceId: number): Promise<DHCPLease[]> {
     try {
       // Lấy thông tin thiết bị từ cơ sở dữ liệu
-      const deviceInfo = await this.mikrotikClient.getDeviceInfo(deviceId);
+      const device = await storage.getDevice(deviceId);
       
-      if (!deviceInfo) {
+      if (!device) {
         throw new Error(`Device with ID ${deviceId} not found`);
       }
       
       // Kết nối đến thiết bị MikroTik
-      console.log(`Connecting to device ${deviceInfo.name} (${deviceInfo.ipAddress}) to get DHCP leases`);
+      console.log(`Connecting to device ${device.name} (${device.ipAddress}) to get DHCP leases`);
       const client = new RouterOS.RouterOSAPI({
-        host: deviceInfo.ipAddress,
-        user: deviceInfo.username,
-        password: deviceInfo.password,
+        host: device.ipAddress,
+        user: device.username,
+        password: device.password,
         port: 8728, // Default API port
         timeout: 10000
       });
@@ -56,7 +50,7 @@ export class DHCPService {
       try {
         // Thiết lập kết nối
         await client.connect();
-        console.log(`Successfully connected to ${deviceInfo.ipAddress}`);
+        console.log(`Successfully connected to ${device.ipAddress}`);
         
         // Lấy danh sách DHCP leases từ thiết bị
         console.log('Fetching DHCP leases...');

@@ -246,6 +246,8 @@ export const insertCapsmanClientSchema = createInsertSchema(capsmanClients).omit
 });
 
 // Network Discovery - lưu thông tin về các thiết bị được phát hiện
+export const deviceRoleEnum = pgEnum('device_role', ['router', 'switch', 'access_point', 'storage', 'server', 'printer', 'camera', 'voice', 'endpoint', 'iot', 'unknown']);
+
 export const networkDevices = pgTable("network_devices", {
   id: serial("id").primaryKey(),
   ipAddress: text("ip_address").notNull(),
@@ -253,6 +255,7 @@ export const networkDevices = pgTable("network_devices", {
   vendor: text("vendor"),
   hostname: text("hostname"),
   deviceType: text("device_type"),
+  deviceRole: deviceRoleEnum("device_role").default("unknown"),
   firstSeen: timestamp("first_seen").defaultNow(),
   lastSeen: timestamp("last_seen").defaultNow(),
   description: text("description"),

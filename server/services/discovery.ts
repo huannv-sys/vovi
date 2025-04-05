@@ -6,9 +6,14 @@ import { promisify } from "util";
 import * as dns from "dns";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from 'url';
 import { db } from "../db";
-import { eq, or, and } from "drizzle-orm";
-import { networkDevices, macVendors, deviceDiscoveryLog } from "@shared/schema";
+import { eq, or, and, sql } from "drizzle-orm";
+import { networkDevices, macVendors, deviceDiscoveryLog, devices } from "@shared/schema";
+
+// Lấy đường dẫn hiện tại từ ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const execPromise = promisify(exec);
 const dnsReverse = promisify(dns.reverse);
@@ -77,10 +82,11 @@ export class DeviceDiscoveryService {
           vendor
         }));
         
-        await db.insert(macVendors).values(values).onConflictDoUpdate({
-          target: macVendors.oui,
-          set: { vendor: undefined } // Giữ nguyên giá trị nếu đã tồn tại
-        });
+        // Nếu không có giá trị nào thì bỏ qua
+        if (values.length === 0) continue;
+        
+        // Sử dụng onConflictDoNothing thay vì onConflictDoUpdate
+        await db.insert(macVendors).values(values).onConflictDoNothing();
       }
       console.log('OUI database sync completed');
     } catch (error) {
@@ -319,52 +325,154 @@ export class DeviceDiscoveryService {
   }
 
   /**
-   * Quét thiết bị trên mạng bằng ARP
+   * Quét thiết bị trên mạng bằng ARP hoặc phương pháp thay thế
    * @param subnet Subnet cần quét (ví dụ: 192.168.1.0/24)
    * @returns Danh sách thiết bị được phát hiện
    */
   public async scanNetworkByArp(subnet?: string): Promise<NetworkDevice[]> {
     try {
-      let cmd = 'arp -a';
-      if (subnet) {
-        // Sử dụng nmap hoặc công cụ khác để quét subnet cụ thể
-        cmd = `ping -c 1 -b ${subnet.replace('/24', '.255')} > /dev/null && arp -a`;
-      }
-      
-      const { stdout } = await execPromise(cmd);
       const devices: NetworkDevice[] = [];
       
-      // Parse kết quả từ arp
-      const lines = stdout.split('\n');
-      for (const line of lines) {
-        // Format kết quả từ "hostname (192.168.1.1) at aa:bb:cc:dd:ee:ff [ether] on interface"
-        const match = line.match(/\(([0-9.]+)\) at ([a-fA-F0-9:]+) \[(\w+)\]/);
-        if (match) {
-          const ipAddress = match[1];
-          const macAddress = match[2];
-          const type = match[3]; // ether, etc.
-          
-          // Bỏ qua địa chỉ đặc biệt
-          if (macAddress === '00:00:00:00:00:00' || macAddress === 'ff:ff:ff:ff:ff:ff') {
-            continue;
+      // Sử dụng nmap để quét mạng (một phương pháp thay thế cho arp)
+      try {
+        // Thử dùng nmap nếu có
+        let nmapCmd = subnet ? `nmap -sn ${subnet}` : 'nmap -sn 192.168.1.0/24';
+        
+        const { stdout: nmapResult } = await execPromise(nmapCmd).catch(() => {
+          // Nếu không có nmap, thử với phương pháp khác
+          return { stdout: '' };
+        });
+        
+        if (nmapResult) {
+          const hosts = nmapResult.match(/Nmap scan report for ([^\s]+)\s+\(([0-9.]+)\)/g);
+          if (hosts) {
+            for (const host of hosts) {
+              const ipMatch = host.match(/\(([0-9.]+)\)/);
+              if (ipMatch && ipMatch[1]) {
+                const ipAddress = ipMatch[1];
+                
+                // Có thể không có MAC từ nmap -sn, tạo một bản ghi với IP và cập nhật sau
+                const device = await this.detectDevice(
+                  ipAddress,
+                  '', // MAC address không có 
+                  'nmap',
+                  undefined,
+                  { source: 'nmap_scan' }
+                );
+                
+                devices.push(device);
+              }
+            }
           }
           
-          // Phát hiện thiết bị
-          const device = await this.detectDevice(
-            ipAddress, 
-            macAddress, 
-            'arp', 
-            undefined, 
-            { type, source: 'arp_scan' }
+          // Nếu tìm thấy thiết bị với nmap, trả về kết quả
+          if (devices.length > 0) {
+            return devices;
+          }
+        }
+      } catch (nmapError) {
+        console.log('Nmap scan failed, trying alternative methods:', nmapError);
+      }
+      
+      // Nếu nmap không hoạt động, thử phương pháp ping sweep
+      try {
+        const targetSubnet = subnet || '192.168.1';
+        const pingPromises = [];
+        
+        // Ping sweep (192.168.1.1 - 192.168.1.254)
+        for (let i = 1; i < 255; i++) {
+          const ip = `${targetSubnet.split('/')[0].split('.').slice(0, 3).join('.')}.${i}`;
+          pingPromises.push(
+            execPromise(`ping -c 1 -W 1 ${ip}`)
+              .then(() => ip)
+              .catch(() => null)
           );
+        }
+        
+        const results = await Promise.all(pingPromises);
+        const activeIps = results.filter(ip => ip !== null);
+        
+        // Tạo thiết bị cho mỗi IP phản hồi
+        for (const ip of activeIps) {
+          if (ip) {
+            const device = await this.detectDevice(
+              ip,
+              '', // Không có MAC
+              'ping',
+              undefined,
+              { source: 'ping_sweep' }
+            );
+            
+            devices.push(device);
+          }
+        }
+      } catch (pingError) {
+        console.error('Ping sweep failed:', pingError);
+      }
+      
+      // Thử arp nếu các phương pháp khác thất bại
+      try {
+        let cmd = 'arp -a';
+        if (subnet) {
+          cmd = `ping -c 1 -b ${subnet.replace('/24', '.255')} > /dev/null && arp -a`;
+        }
+        
+        const { stdout } = await execPromise(cmd);
+        
+        // Parse kết quả từ arp
+        const lines = stdout.split('\n');
+        for (const line of lines) {
+          // Format kết quả từ "hostname (192.168.1.1) at aa:bb:cc:dd:ee:ff [ether] on interface"
+          const match = line.match(/\(([0-9.]+)\) at ([a-fA-F0-9:]+) \[(\w+)\]/);
+          if (match) {
+            const ipAddress = match[1];
+            const macAddress = match[2];
+            const type = match[3]; // ether, etc.
+            
+            // Bỏ qua địa chỉ đặc biệt
+            if (macAddress === '00:00:00:00:00:00' || macAddress === 'ff:ff:ff:ff:ff:ff') {
+              continue;
+            }
+            
+            // Phát hiện thiết bị
+            const device = await this.detectDevice(
+              ipAddress, 
+              macAddress, 
+              'arp', 
+              undefined, 
+              { type, source: 'arp_scan' }
+            );
+            
+            devices.push(device);
+          }
+        }
+      } catch (arpError) {
+        console.log('ARP scan failed:', arpError);
+      }
+      
+      // Nếu không tìm thấy thiết bị nào và có thiết bị trong database, đề xuất sử dụng quét DHCP
+      if (devices.length === 0) {
+        console.log('No devices found by network scan. Recommend using DHCP discovery instead.');
+        
+        try {
+          // Tìm thấy thiết bị MikroTik để quét DHCP
+          const result = await db.execute(sql`SELECT * FROM devices LIMIT 5`);
+          const mikrotikDevices = result.rows || [];
           
-          devices.push(device);
+          if (mikrotikDevices.length > 0) {
+            console.log(`Found ${mikrotikDevices.length} MikroTik devices for DHCP scanning.`);
+            
+            // Không tự động quét DHCP, chỉ ghi log
+            console.log('Will try DHCP discovery on next scheduled cycle.');
+          }
+        } catch (dbError) {
+          console.error('Error querying devices table:', dbError);
         }
       }
       
       return devices;
     } catch (error) {
-      console.error('Error scanning network by ARP:', error);
+      console.error('Error scanning network:', error);
       return [];
     }
   }
@@ -376,17 +484,17 @@ export class DeviceDiscoveryService {
    */
   public async detectDevicesFromMikrotikDHCP(deviceId: number): Promise<NetworkDevice[]> {
     try {
-      const device = await storage.getDevice(deviceId);
-      if (!device) {
+      const mikrotikDevice = await storage.getDevice(deviceId);
+      if (!mikrotikDevice) {
         throw new Error(`Device with ID ${deviceId} not found`);
       }
       
       // Tạo kết nối MikroTik
       await mikrotikService.connect({
-        id: device.id,
-        host: device.ipAddress,
-        username: device.username,
-        password: device.password
+        id: mikrotikDevice.id,
+        host: mikrotikDevice.ipAddress,
+        username: mikrotikDevice.username,
+        password: mikrotikDevice.password
       });
       
       // Lấy danh sách DHCP leases
@@ -400,11 +508,11 @@ export class DeviceDiscoveryService {
           const hostname = lease.host || undefined;
           
           // Phát hiện thiết bị
-          const device = await this.detectDevice(
+          const detectedDevice = await this.detectDevice(
             ipAddress, 
             macAddress, 
             'dhcp', 
-            device.ipAddress, // Router IP
+            mikrotikDevice.ipAddress, // Router IP
             { 
               hostname, 
               clientId: lease['client-id'], 
@@ -415,7 +523,7 @@ export class DeviceDiscoveryService {
             }
           );
           
-          devices.push(device);
+          devices.push(detectedDevice);
         }
       }
       
@@ -455,7 +563,7 @@ export class DeviceDiscoveryService {
         }
         
         if (filter.minIdentificationScore !== undefined) {
-          conditions.push(networkDevices.identificationScore >= filter.minIdentificationScore);
+          conditions.push(sql`${networkDevices.identificationScore} >= ${filter.minIdentificationScore}`);
         }
         
         if (conditions.length > 0) {
@@ -481,7 +589,7 @@ export class DeviceDiscoveryService {
       return await db.select()
         .from(deviceDiscoveryLog)
         .where(eq(deviceDiscoveryLog.deviceId, deviceId))
-        .orderBy(deviceDiscoveryLog.timestamp, 'desc')
+        .orderBy(sql`${deviceDiscoveryLog.timestamp} DESC`)
         .limit(limit);
     } catch (error) {
       console.error(`Error getting discovery history for device ID ${deviceId}:`, error);
