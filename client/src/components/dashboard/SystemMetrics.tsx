@@ -207,38 +207,42 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
         </div>
       </div>
 
-      {/* Detailed device information table - matching the image layout */}
+      {/* Detailed device information table - dynamic data from device */}
       <div className="grid grid-cols-1 gap-y-2 text-xs bg-gray-900 rounded-lg shadow-md p-2">
         <div className="grid grid-cols-12 gap-2">
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Uptime</span>
-            <span className="text-green-400 font-medium">4w16h43m36</span>
+            <span className="text-green-400 font-medium">{device?.uptime || latestMetric?.uptime || 'Unknown'}</span>
           </div>
           
           <div className="col-span-2 flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Model</span>
-            <span className="text-green-400 font-medium">Unknown</span>
+            <span className="text-green-400 font-medium">{device?.model || 'Unknown'}</span>
           </div>
           
           <div className="col-span-2 flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">RouterOS date</span>
-            <span className="text-green-400 font-medium">Unknown</span>
+            <span className="text-green-400 font-medium">
+              {device?.routerOsVersion || 'Unknown'}
+            </span>
           </div>
           
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Firmware</span>
-            <span className="text-green-400 font-medium">Unknown</span>
+            <span className="text-green-400 font-medium">{device?.firmware || 'Unknown'}</span>
           </div>
           
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Board</span>
-            <span className="text-green-400 font-medium">N/A</span>
+            <span className="text-green-400 font-medium">{device?.model ? device.model.split(' ')[0] : 'N/A'}</span>
           </div>
 
           <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
             <div>
               <span className="text-gray-400 mb-1">Status</span>
-              <span className="text-red-400 font-medium block">Offline</span>
+              <span className={`${device?.isOnline ? 'text-green-400' : 'text-red-400'} font-medium block`}>
+                {device?.isOnline ? 'Online' : 'Offline'}
+              </span>
             </div>
             <Info className="text-gray-500" size={16} />
           </div>
@@ -254,7 +258,18 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
           <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
             <div>
               <span className="text-gray-400 mb-1">Errors</span>
-              <span className="text-green-400 font-medium block">0</span>
+              <span className="text-green-400 font-medium block">
+                {(() => {
+                  if (!interfaces) return '0';
+                  
+                  let totalErrors = 0;
+                  interfaces.forEach(iface => {
+                    totalErrors += (iface.txErrors || 0) + (iface.rxErrors || 0);
+                  });
+                  
+                  return totalErrors;
+                })()}
+              </span>
             </div>
             <Info className="text-gray-500" size={16} />
           </div>
@@ -262,14 +277,16 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
           <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
             <div>
               <span className="text-gray-400 mb-1">DHCPs</span>
-              <span className="text-green-400 font-medium block">N/A</span>
+              <span className="text-green-400 font-medium block">
+                {device?.model?.toLowerCase().includes('router') ? 'Active' : 'N/A'}
+              </span>
             </div>
             <Info className="text-gray-500" size={16} />
           </div>
 
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">CPU Mhz</span>
-            <span className="text-green-400 font-medium">Unknown</span>
+            <span className="text-green-400 font-medium">{device?.cpu || 'Unknown'}</span>
           </div>
         </div>
       </div>
