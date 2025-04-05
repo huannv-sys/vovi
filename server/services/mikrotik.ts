@@ -10,6 +10,7 @@ import { storage } from "../storage";
 import { alertSeverity } from "@shared/schema";
 import { wirelessService } from "./wireless";
 import { capsmanService } from "./capsman";
+import { deviceInfoService } from "./device_info";
 
 // Sử dụng thư viện node-routeros để kết nối với RouterOS
 import * as RouterOS from 'node-routeros';
@@ -379,16 +380,41 @@ export class MikrotikService {
         return;
       }
       
+      // Thêm thông tin về thiết bị vào cảnh báo
+      let enhancedMessage = message;
+      
+      if (device.model) {
+        enhancedMessage = `${device.model}: ${message}`;
+      }
+      
+      // Bổ sung thông tin RouterOS nếu có lỗi liên quan đến firmware
+      if (source === "connection" || source === "firmware") {
+        if (device.routerOsVersion) {
+          enhancedMessage += ` (RouterOS: ${device.routerOsVersion})`;
+          
+          // Thử kiểm tra thông tin phiên bản RouterOS
+          try {
+            const routerOsInfo = await deviceInfoService.getRouterOSInfo(device.routerOsVersion);
+            
+            if (typeof routerOsInfo === 'object' && 'release_date' in routerOsInfo && !('error' in routerOsInfo)) {
+              enhancedMessage += ` - Released: ${routerOsInfo.release_date}`;
+            }
+          } catch (versionError) {
+            console.warn(`Could not get RouterOS version info: ${versionError}`);
+          }
+        }
+      }
+      
       const alert: InsertAlert = {
         deviceId,
         timestamp: new Date(),
         severity,
-        message,
+        message: enhancedMessage,
         source
       };
       
       await storage.createAlert(alert);
-      console.log(`Created new alert for device ${deviceId}: ${message}`);
+      console.log(`Created new alert for device ${deviceId}: ${enhancedMessage}`);
     } catch (error) {
       console.error(`Error creating alert for device ${deviceId}:`, error);
     }
@@ -927,6 +953,28 @@ export class MikrotikService {
           if (isMikrotik) {
             console.log(`Found MikroTik device at ${ipToCheck}`);
             
+            // Lấy thông tin cơ bản về thiết bị
+            let deviceModel = null;
+            let routerOsVersion = null;
+            
+            try {
+              // Thử kết nối để lấy thông tin model
+              const tempClient = new MikrotikClient(ipToCheck, 'admin', 'admin');
+              tempClient.setPort(8728);
+              const connected = await tempClient.connect(5000);
+              
+              if (connected) {
+                const resourcesData = await tempClient.executeCommand('/system/resource/print');
+                if (Array.isArray(resourcesData) && resourcesData.length > 0) {
+                  deviceModel = resourcesData[0].board || resourcesData[0]['board-name'];
+                  routerOsVersion = resourcesData[0].version;
+                }
+                await tempClient.disconnect();
+              }
+            } catch (modelError) {
+              console.warn(`Could not get model info for device at ${ipToCheck}:`, modelError);
+            }
+            
             // Tạo thiết bị mới trong CSDL với thông tin cơ bản
             const newDevice: InsertDevice = {
               name: `MikroTik-${ipToCheck}`,
@@ -936,9 +984,9 @@ export class MikrotikService {
               isOnline: false,
               lastSeen: new Date(),
               uptime: '0d 0h 0m',
-              model: null,
+              model: deviceModel,
               serialNumber: null,
-              routerOsVersion: null,
+              routerOsVersion: routerOsVersion,
               firmware: null,
               cpu: null,
               totalMemory: null,
@@ -947,7 +995,23 @@ export class MikrotikService {
               hasWireless: false
             };
             
-            await storage.createDevice(newDevice);
+            const createdDevice = await storage.createDevice(newDevice);
+            
+            // Nếu có model, thử lấy thêm thông tin từ trang web MikroTik
+            if (deviceModel) {
+              try {
+                console.log(`Enriching device information for model ${deviceModel}...`);
+                const enrichedDevice = await deviceInfoService.enrichDeviceInfo(createdDevice);
+                
+                if (enrichedDevice !== createdDevice) {
+                  await storage.updateDevice(createdDevice.id, enrichedDevice);
+                  console.log(`Updated device ${createdDevice.id} with enriched information`);
+                }
+              } catch (enrichError) {
+                console.warn(`Could not enrich device info for ${deviceModel}:`, enrichError);
+              }
+            }
+            
             devicesFound++;
           }
         } catch (error) {

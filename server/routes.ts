@@ -6,6 +6,7 @@ import { mikrotikService } from "./services/mikrotik";
 import { wirelessService } from "./services/wireless";
 import { capsmanService } from "./services/capsman";
 import { schedulerService } from "./services/scheduler";
+import { deviceInfoService } from "./services/device_info";
 import { insertDeviceSchema, insertAlertSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -382,6 +383,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error during network discovery:", error);
       return res.status(500).json({ message: "Failed to discover devices on network" });
+    }
+  });
+  
+  // Lấy thông tin thiết bị từ trang web MikroTik
+  router.get("/device-info/:model", async (req: Request, res: Response) => {
+    try {
+      const modelName = req.params.model;
+      if (!modelName) {
+        return res.status(400).json({ message: "Model name is required" });
+      }
+      
+      const deviceInfo = await deviceInfoService.getDeviceInfo(modelName);
+      
+      if (deviceInfo.error) {
+        return res.status(404).json({ message: deviceInfo.error });
+      }
+      
+      res.json(deviceInfo);
+    } catch (error) {
+      console.error("Lỗi khi lấy thông tin thiết bị:", error);
+      res.status(500).json({ message: "Failed to fetch device information" });
+    }
+  });
+  
+  // Lấy thông tin phiên bản RouterOS
+  router.get("/routeros-info/:version?", async (req: Request, res: Response) => {
+    try {
+      const version = req.params.version;
+      const routerOSInfo = await deviceInfoService.getRouterOSInfo(version);
+      
+      if (typeof routerOSInfo === 'object' && 'error' in routerOSInfo) {
+        return res.status(404).json({ message: routerOSInfo.error });
+      }
+      
+      res.json(routerOSInfo);
+    } catch (error) {
+      console.error("Lỗi khi lấy thông tin RouterOS:", error);
+      res.status(500).json({ message: "Failed to fetch RouterOS information" });
+    }
+  });
+  
+  // Làm phong phú thông tin thiết bị với dữ liệu từ web
+  router.post("/devices/:id/enrich", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      const device = await storage.getDevice(deviceId);
+      
+      if (!device) {
+        return res.status(404).json({ message: "Device not found" });
+      }
+      
+      const enrichedDevice = await deviceInfoService.enrichDeviceInfo(device);
+      
+      // Cập nhật thiết bị trong cơ sở dữ liệu
+      if (enrichedDevice !== device) {
+        const updatedDevice = await storage.updateDevice(deviceId, enrichedDevice);
+        return res.json(updatedDevice);
+      }
+      
+      res.json(device);
+    } catch (error) {
+      console.error("Lỗi khi làm phong phú thông tin thiết bị:", error);
+      res.status(500).json({ message: "Failed to enrich device information" });
     }
   });
 
