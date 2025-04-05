@@ -209,12 +209,21 @@ const ClientsPage: React.FC = () => {
 
   const scanNetwork = async () => {
     try {
+      if (!deviceId) {
+        setAlert({
+          type: 'danger',
+          message: 'Please select a router first'
+        });
+        return;
+      }
+      
       setScanning(true);
       setAlert(null);
       // Gửi yêu cầu quét dựa trên subnet hoặc tự động phát hiện
       const response = await axios.post('/api/clients/scan', { 
         subnet: subnet || undefined,
-        autoDetect: !subnet // Tự động phát hiện nếu không có subnet
+        autoDetect: !subnet, // Tự động phát hiện nếu không có subnet
+        routerId: deviceId // Thêm routerId để API biết thiết bị nào cần quét
       });
       
       if (response.data && response.data.devices) {
