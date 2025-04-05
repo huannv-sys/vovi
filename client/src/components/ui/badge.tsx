@@ -1,38 +1,43 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import React from "react";
+import { cn } from "../../lib/utils";
 
-import { cn } from "@/lib/utils"
-
-const badgeVariants = cva(
-  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
-  {
-    variants: {
-      variant: {
-        default:
-          "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
-        secondary:
-          "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        destructive:
-          "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-foreground",
-        success:
-          "border-transparent bg-green-500 text-white hover:bg-green-600",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-    },
-  }
-)
-
-export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
-
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return (
-    <div className={cn(badgeVariants({ variant }), className)} {...props} />
-  )
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  variant?: "default" | "secondary" | "success" | "danger" | "warning" | "info";
+  size?: "sm" | "md" | "lg";
 }
 
-export { Badge, badgeVariants }
+export function Badge({
+  className,
+  variant = "default",
+  size = "md",
+  ...props
+}: BadgeProps) {
+  // Map variants to Bootstrap classes
+  const variantClass = {
+    default: "bg-primary text-white",
+    secondary: "bg-secondary text-white",
+    success: "bg-success text-white",
+    danger: "bg-danger text-white",
+    warning: "bg-warning text-dark",
+    info: "bg-info text-dark",
+  }[variant];
+
+  // Map sizes to Bootstrap classes
+  const sizeClass = {
+    sm: "badge-sm",
+    md: "",
+    lg: "badge-lg",
+  }[size];
+
+  return (
+    <span
+      className={cn(
+        "badge d-inline-flex align-items-center",
+        variantClass,
+        sizeClass,
+        className
+      )}
+      {...props}
+    />
+  );
+}

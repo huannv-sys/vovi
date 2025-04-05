@@ -9,6 +9,7 @@ import PerformanceReports from "@/pages/reports";
 import EventHistory from "@/pages/events";
 import Wireless from "@/pages/wireless";
 import Capsman from "@/pages/capsman";
+import Clients from "@/pages/clients";
 import NotFound from "@/pages/not-found";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -19,6 +20,7 @@ function App() {
         <Route path="/" component={Dashboard} />
         <Route path="/dashboard" component={Dashboard} />
         <Route path="/devices" component={Devices} />
+        <Route path="/clients" component={Clients} />
         <Route path="/alerts" component={Alerts} />
         <Route path="/network" component={Network} />
         <Route path="/wireless" component={Wireless} />

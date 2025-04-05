@@ -1336,3 +1336,75 @@ export class MikrotikService {
 
 // Xuất một thể hiện duy nhất của dịch vụ MikroTik
 export const mikrotikService = new MikrotikService();
+
+// Lấy thông tin thiết bị MikroTik
+export async function getMikrotikDevice(deviceId: number) {
+  try {
+    const device = await storage.getDevice(deviceId);
+    return device;
+  } catch (error) {
+    console.error(`Error getting MikroTik device ${deviceId}:`, error);
+    return null;
+  }
+}
+
+// Lấy danh sách DHCP lease từ thiết bị MikroTik
+export async function getDhcpLeases(device: any) {
+  try {
+    const client = new MikrotikClient(device.ipAddress, device.username, device.password);
+    const connected = await client.connect();
+    if (!connected) {
+      throw new Error('Could not connect to MikroTik device');
+    }
+    
+    const leases = await client.executeCommand('/ip/dhcp-server/lease/print');
+    await client.disconnect();
+    
+    return leases.map((lease: any) => ({
+      id: lease['.id'],
+      address: lease['address'],
+      macAddress: lease['mac-address'],
+      clientId: lease['client-id'],
+      hostName: lease['host-name'],
+      comment: lease['comment'],
+      status: lease['status'],
+      server: lease['server'],
+      disabled: lease['disabled'] === 'true',
+      dynamic: lease['dynamic'] === 'true',
+      blocked: lease['blocked'] === 'true',
+      lastSeen: new Date()
+    }));
+  } catch (error) {
+    console.error(`Error getting DHCP leases from device ${device.id}:`, error);
+    return [];
+  }
+}
+
+// Lấy danh sách ARP từ thiết bị MikroTik
+export async function getArpTable(device: any) {
+  try {
+    const client = new MikrotikClient(device.ipAddress, device.username, device.password);
+    const connected = await client.connect();
+    if (!connected) {
+      throw new Error('Could not connect to MikroTik device');
+    }
+    
+    const arpEntries = await client.executeCommand('/ip/arp/print');
+    await client.disconnect();
+    
+    return arpEntries.map((entry: any) => ({
+      id: entry['.id'],
+      address: entry['address'],
+      macAddress: entry['mac-address'],
+      interface: entry['interface'],
+      complete: entry['complete'],
+      disabled: entry['disabled'],
+      dynamic: entry['dynamic'],
+      invalid: entry['invalid'],
+      lastSeen: new Date()
+    }));
+  } catch (error) {
+    console.error(`Error getting ARP table from device ${device.id}:`, error);
+    return [];
+  }
+}

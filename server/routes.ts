@@ -9,11 +9,12 @@ import {
   capsmanService, 
   schedulerService, 
   deviceInfoService,
-  deviceDiscoveryService,
+  discoveryService as deviceDiscoveryService,
   deviceIdentificationService,
   deviceClassifierService,
   trafficCollectorService,
-  networkScannerService
+  networkScannerService,
+  clientManagementService
 } from "./services";
 import { interfaceHealthService } from "./services/interface_health";
 import { 
@@ -508,6 +509,162 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Register the router with the prefix
+  // Client Management routes
+  router.get("/clients", async (_req: Request, res: Response) => {
+    try {
+      const devices = await clientManagementService.getNetworkDevices();
+      res.json(devices);
+    } catch (error) {
+      console.error('Error fetching clients:', error);
+      res.status(500).json({ message: "Failed to fetch clients" });
+    }
+  });
+  
+  router.get("/clients/:id", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      const device = await clientManagementService.checkDeviceStatus(deviceId);
+      
+      if (!device) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+      
+      res.json(device);
+    } catch (error) {
+      console.error('Error fetching client:', error);
+      res.status(500).json({ message: "Failed to fetch client" });
+    }
+  });
+  
+  router.post("/clients/add-device", async (req: Request, res: Response) => {
+    try {
+      const schema = z.object({
+        ipAddress: z.string(),
+        macAddress: z.string(),
+        hostName: z.string().optional(),
+        interface: z.string().optional()
+      });
+      
+      const validatedData = schema.parse(req.body);
+      
+      // Create a network device object from the validated data
+      const device = {
+        ipAddress: validatedData.ipAddress,
+        macAddress: validatedData.macAddress,
+        hostName: validatedData.hostName,
+        interface: validatedData.interface
+      };
+      
+      const added = await clientManagementService.addDeviceToMonitoring(device as NetworkDeviceDetails);
+      
+      if (!added) {
+        return res.status(500).json({ 
+          success: false, 
+          message: "Failed to add device to monitoring" 
+        });
+      }
+      
+      res.status(201).json({ 
+        success: true, 
+        message: "Device added to monitoring successfully", 
+        device: added 
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "Invalid device data", 
+          errors: error.errors 
+        });
+      }
+      console.error('Error adding device to monitoring:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to add device to monitoring" 
+      });
+    }
+  });
+  
+  router.post("/clients/refresh-all", async (_req: Request, res: Response) => {
+    try {
+      const devices = await clientManagementService.refreshAllDeviceStatus();
+      
+      res.json({
+        success: true,
+        message: "Device statuses refreshed successfully",
+        devices
+      });
+    } catch (error) {
+      console.error('Error refreshing all device statuses:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to refresh device statuses" 
+      });
+    }
+  });
+  
+  router.post("/clients/:id/refresh", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      const device = await clientManagementService.checkDeviceStatus(deviceId);
+      
+      if (!device) {
+        return res.status(404).json({ 
+          success: false,
+          message: "Device not found" 
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: "Device status refreshed successfully",
+        device
+      });
+    } catch (error) {
+      console.error(`Error refreshing device status for ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to refresh device status" 
+      });
+    }
+  });
+  
+  router.post("/clients/:id/traffic", async (req: Request, res: Response) => {
+    try {
+      const deviceId = parseInt(req.params.id);
+      
+      // Simple traffic data for testing
+      const trafficData = {
+        txBytes: Math.floor(Math.random() * 10000000),
+        rxBytes: Math.floor(Math.random() * 10000000),
+        txRate: Math.floor(Math.random() * 1000000),
+        rxRate: Math.floor(Math.random() * 1000000)
+      };
+      
+      const updated = await clientManagementService.updateDeviceTraffic(deviceId, trafficData);
+      
+      if (!updated) {
+        return res.status(404).json({ 
+          success: false,
+          message: "Device not found or traffic update failed" 
+        });
+      }
+      
+      res.json({
+        success: true,
+        message: "Device traffic updated successfully",
+        device: updated,
+        trafficData
+      });
+    } catch (error) {
+      console.error(`Error updating device traffic for ID ${req.params.id}:`, error);
+      res.status(500).json({ 
+        success: false, 
+        message: "Failed to update device traffic" 
+      });
+    }
+  });
+  
   // Network Discovery routes
   router.get("/network-devices", async (req: Request, res: Response) => {
     try {
@@ -515,13 +672,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const vendor = req.query.vendor as string | undefined;
       const minScore = req.query.minScore ? parseInt(req.query.minScore as string) : undefined;
       
-      const devices = await deviceDiscoveryService.getNetworkDevices({
+      const devices = await discoveryService.getNetworkDevices({
         isIdentified,
         vendor,
         minIdentificationScore: minScore
       });
       
-      res.json(devices);
+      // Get updated online status for all devices
+      const devicesWithStatus = await clientManagementService.getNetworkDevices();
+      
+      // Merge the status information with the device data
+      const mergedDevices = devices.map(device => {
+        const statusDevice = devicesWithStatus.find(d => d.ipAddress === device.ipAddress);
+        return {
+          ...device,
+          isOnline: statusDevice ? statusDevice.isOnline : false
+        };
+      });
+      
+      res.json(mergedDevices);
     } catch (error) {
       console.error('Error fetching network devices:', error);
       res.status(500).json({ message: "Failed to fetch network devices" });

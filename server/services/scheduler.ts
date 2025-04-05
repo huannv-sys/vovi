@@ -1,5 +1,5 @@
-import { deviceDiscoveryService } from "./discovery";
-import { deviceIdentificationService } from "./device-identification";
+import * as discoveryService from "./discovery";
+import * as deviceIdentificationService from "./device-identification";
 import { storage } from "../storage";
 import { db } from "../db";
 import { networkDevices } from "@shared/schema";
@@ -125,10 +125,10 @@ export class SchedulerService {
       console.log('Running network discovery scan...');
       
       // Quét ARP trên mạng cục bộ
-      await deviceDiscoveryService.scanNetworkByArp();
+      await discoveryService.scanNetworkByArp();
       
       // Quét các subnet tùy chỉnh (ví dụ: từ cấu hình)
-      // await deviceDiscoveryService.scanNetworkByArp('192.168.2.0/24');
+      // await discoveryService.scanNetworkByArp('192.168.2.0/24');
       
       console.log('Network discovery scan completed');
     } catch (error) {
@@ -195,7 +195,7 @@ export class SchedulerService {
       // Lấy thông tin DHCP từ mỗi router
       for (const device of devices) {
         try {
-          await deviceDiscoveryService.detectDevicesFromMikrotikDHCP(device.id);
+          await discoveryService.detectDevicesFromMikrotikDHCP(device.id);
         } catch (error) {
           console.error(`Error scanning DHCP from device ${device.id}:`, error);
         }
@@ -258,7 +258,7 @@ export class SchedulerService {
     
     try {
       this.isDiscoveryRunning = true;
-      const devices = await deviceDiscoveryService.scanNetworkByArp(subnet);
+      const devices = await discoveryService.scanNetworkByArp(subnet);
       return { 
         success: true, 
         message: `Manual discovery completed, found ${devices.length} devices`, 
@@ -283,7 +283,7 @@ export class SchedulerService {
     
     try {
       this.isRouterDiscoveryRunning = true;
-      const devices = await deviceDiscoveryService.detectDevicesFromMikrotikDHCP(deviceId);
+      const devices = await discoveryService.detectDevicesFromMikrotikDHCP(deviceId);
       return { 
         success: true, 
         message: `Manual router discovery completed, found ${devices.length} devices from router ID ${deviceId}`, 

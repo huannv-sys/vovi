@@ -1,115 +1,74 @@
-import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
-import { ChevronRight, MoreHorizontal } from "lucide-react"
+import React from 'react';
+import { Link } from 'wouter';
+import { cn } from "../../lib/utils";
+import { ChevronRight, Home } from 'lucide-react';
 
-import { cn } from "@/lib/utils"
+interface BreadcrumbProps {
+  className?: string;
+  children: React.ReactNode;
+}
 
-const Breadcrumb = React.forwardRef<
-  HTMLElement,
-  React.ComponentPropsWithoutRef<"nav"> & {
-    separator?: React.ReactNode
-  }
->(({ ...props }, ref) => <nav ref={ref} aria-label="breadcrumb" {...props} />)
-Breadcrumb.displayName = "Breadcrumb"
+interface BreadcrumbItemProps {
+  className?: string;
+  href?: string;
+  isActive?: boolean;
+  children: React.ReactNode;
+}
 
-const BreadcrumbList = React.forwardRef<
-  HTMLOListElement,
-  React.ComponentPropsWithoutRef<"ol">
->(({ className, ...props }, ref) => (
-  <ol
-    ref={ref}
-    className={cn(
-      "flex flex-wrap items-center gap-1.5 break-words text-sm text-muted-foreground sm:gap-2.5",
-      className
-    )}
-    {...props}
-  />
-))
-BreadcrumbList.displayName = "BreadcrumbList"
+interface PageTitleProps {
+  className?: string;
+  children: React.ReactNode;
+}
 
-const BreadcrumbItem = React.forwardRef<
-  HTMLLIElement,
-  React.ComponentPropsWithoutRef<"li">
->(({ className, ...props }, ref) => (
-  <li
-    ref={ref}
-    className={cn("inline-flex items-center gap-1.5", className)}
-    {...props}
-  />
-))
-BreadcrumbItem.displayName = "BreadcrumbItem"
-
-const BreadcrumbLink = React.forwardRef<
-  HTMLAnchorElement,
-  React.ComponentPropsWithoutRef<"a"> & {
-    asChild?: boolean
-  }
->(({ asChild, className, ...props }, ref) => {
-  const Comp = asChild ? Slot : "a"
-
+export function Breadcrumb({ className, children }: BreadcrumbProps) {
   return (
-    <Comp
-      ref={ref}
-      className={cn("transition-colors hover:text-foreground", className)}
-      {...props}
-    />
-  )
-})
-BreadcrumbLink.displayName = "BreadcrumbLink"
+    <nav aria-label="breadcrumb">
+      <ol className={cn("breadcrumb", className)}>
+        {children}
+      </ol>
+    </nav>
+  );
+}
 
-const BreadcrumbPage = React.forwardRef<
-  HTMLSpanElement,
-  React.ComponentPropsWithoutRef<"span">
->(({ className, ...props }, ref) => (
-  <span
-    ref={ref}
-    role="link"
-    aria-disabled="true"
-    aria-current="page"
-    className={cn("font-normal text-foreground", className)}
-    {...props}
-  />
-))
-BreadcrumbPage.displayName = "BreadcrumbPage"
+export function BreadcrumbItem({ className, href, isActive = false, children }: BreadcrumbItemProps) {
+  const classes = cn(
+    "breadcrumb-item",
+    isActive && "active",
+    className
+  );
+  
+  return (
+    <li className={classes} aria-current={isActive ? "page" : undefined}>
+      {href && !isActive ? (
+        <Link href={href}>{children}</Link>
+      ) : (
+        children
+      )}
+    </li>
+  );
+}
 
-const BreadcrumbSeparator = ({
-  children,
-  className,
-  ...props
-}: React.ComponentProps<"li">) => (
-  <li
-    role="presentation"
-    aria-hidden="true"
-    className={cn("[&>svg]:w-3.5 [&>svg]:h-3.5", className)}
-    {...props}
-  >
-    {children ?? <ChevronRight />}
-  </li>
-)
-BreadcrumbSeparator.displayName = "BreadcrumbSeparator"
+export function BreadcrumbSeparator() {
+  return <ChevronRight className="mx-1" size={16} />;
+}
 
-const BreadcrumbEllipsis = ({
-  className,
-  ...props
-}: React.ComponentProps<"span">) => (
-  <span
-    role="presentation"
-    aria-hidden="true"
-    className={cn("flex h-9 w-9 items-center justify-center", className)}
-    {...props}
-  >
-    <MoreHorizontal className="h-4 w-4" />
-    <span className="sr-only">More</span>
-  </span>
-)
-BreadcrumbEllipsis.displayName = "BreadcrumbElipssis"
+export function PageTitle({ className, children }: PageTitleProps) {
+  return (
+    <h1 className={cn("h4 mb-0", className)}>
+      {children}
+    </h1>
+  );
+}
 
-export {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-  BreadcrumbEllipsis,
+// Default breadcrumb with home link
+export function DefaultBreadcrumb({ currentPage }: { currentPage: string }) {
+  return (
+    <Breadcrumb className="mb-4">
+      <BreadcrumbItem href="/">
+        <Home size={16} className="me-1" /> Home
+      </BreadcrumbItem>
+      <BreadcrumbSeparator />
+      <BreadcrumbItem isActive>{currentPage}</BreadcrumbItem>
+    </Breadcrumb>
+  );
 }
