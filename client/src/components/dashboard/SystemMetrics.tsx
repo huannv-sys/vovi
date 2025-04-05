@@ -19,10 +19,11 @@ interface SystemMetricsProps {
 }
 
 const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
-  // Fetch device info
+  // Fetch device info - Sửa query key để hiển thị đúng
   const { data: device } = useQuery<Device>({ 
-    queryKey: deviceId ? ['/api/devices', deviceId] : ['empty'],
+    queryKey: deviceId ? [`/api/devices/${deviceId}`] : ['empty'],
     enabled: !!deviceId,
+    refetchInterval: 5000, // Refresh đều đặn
   });
 
   // Fetch metrics data with higher refresh rate - sửa đường dẫn API
