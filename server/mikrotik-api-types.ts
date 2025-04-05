@@ -14,6 +14,7 @@ export interface ArpEntry {
   dynamic?: string;
   invalid?: string;
   lastSeen?: Date;
+  deviceId?: number; // ID của thiết bị Mikrotik nguồn
 }
 
 // Bản ghi DHCP từ MikroTik API
@@ -36,6 +37,7 @@ export interface DhcpLease {
   activeServerId?: string;
   agentCircuitId?: string;
   agentRemoteId?: string;
+  deviceId?: number; // ID của thiết bị Mikrotik nguồn
 }
 
 // Bản ghi interface từ MikroTik API 
@@ -74,6 +76,7 @@ export interface NetworkDeviceDetails {
   lastSeen?: Date;
   deviceType?: string;
   deviceData?: Record<string, any>;
+  isOnline?: boolean;  // Trạng thái online/offline của thiết bị
   metadata?: {
     openPorts?: number[];
     httpHeaders?: Record<string, string>;

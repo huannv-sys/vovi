@@ -1,126 +1,142 @@
 import { NetworkDeviceDetails } from '../mikrotik-api-types';
-import * as discovery from './discovery';
+import axios from 'axios';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Hàm này định danh thiết bị bằng cách sử dụng các phương pháp khác nhau
+// Cache thông tin nhà sản xuất MAC
+const MAC_VENDORS_CACHE_FILE = './attached_assets/mac_vendors_cache.json';
+const MAC_VENDORS_CACHE_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 ngày
+let macVendorsCache: Record<string, { vendor: string, timestamp: number }> = {};
+
+// Load cache từ file khi module được khởi tạo
+try {
+  if (fs.existsSync(MAC_VENDORS_CACHE_FILE)) {
+    const cacheData = fs.readFileSync(MAC_VENDORS_CACHE_FILE, 'utf8');
+    macVendorsCache = JSON.parse(cacheData);
+    console.log(`Đã tải ${Object.keys(macVendorsCache).length} mục MAC vendor từ cache`);
+  }
+} catch (error) {
+  console.error('Lỗi khi tải MAC vendor cache:', error);
+  // Tạo file cache nếu chưa tồn tại
+  try {
+    fs.writeFileSync(MAC_VENDORS_CACHE_FILE, JSON.stringify({}), 'utf8');
+    console.log('Đã tạo file MAC vendor cache mới');
+  } catch (err) {
+    console.error('Không thể tạo file MAC vendor cache:', err);
+  }
+}
+
+/**
+ * Lưu cache vào file
+ */
+function saveMacVendorsCache() {
+  try {
+    fs.writeFileSync(MAC_VENDORS_CACHE_FILE, JSON.stringify(macVendorsCache), 'utf8');
+  } catch (error) {
+    console.error('Lỗi khi lưu MAC vendor cache:', error);
+  }
+}
+
+/**
+ * Chuẩn hóa định dạng MAC address
+ */
+function normalizeMac(mac: string): string {
+  // Chuyển đổi về dạng chữ hoa, loại bỏ các ký tự đặc biệt
+  return mac.toUpperCase().replace(/[^A-F0-9]/g, '');
+}
+
+/**
+ * Tra cứu nhà sản xuất từ MAC address
+ */
+export async function getMacVendor(mac: string): Promise<string | null> {
+  if (!mac || mac.length < 6) {
+    return null;
+  }
+
+  // Chuẩn hóa MAC address
+  const normalizedMac = normalizeMac(mac);
+  // Sử dụng 6 ký tự đầu tiên (OUI - Organizationally Unique Identifier)
+  const oui = normalizedMac.substring(0, 6);
+
+  // Kiểm tra cache
+  if (macVendorsCache[oui]) {
+    const cachedEntry = macVendorsCache[oui];
+    // Kiểm tra xem cache có hết hạn chưa
+    if (Date.now() - cachedEntry.timestamp < MAC_VENDORS_CACHE_EXPIRY) {
+      return cachedEntry.vendor;
+    }
+  }
+
+  // Nếu không có trong cache hoặc cache đã hết hạn, tra cứu online
+  try {
+    // Sử dụng API macvendors.com để tra cứu
+    const response = await axios.get(`https://api.macvendors.com/${oui}`, {
+      timeout: 5000 // 5 giây timeout
+    });
+
+    if (response.status === 200 && response.data) {
+      const vendor = response.data;
+      
+      // Cập nhật cache
+      macVendorsCache[oui] = {
+        vendor: vendor,
+        timestamp: Date.now()
+      };
+      
+      // Lưu cache
+      saveMacVendorsCache();
+      
+      return vendor;
+    }
+  } catch (error) {
+    // Lỗi API hoặc không tìm thấy
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      // Nhà sản xuất không tìm thấy, cập nhật cache với giá trị rỗng
+      macVendorsCache[oui] = {
+        vendor: '',
+        timestamp: Date.now()
+      };
+      saveMacVendorsCache();
+    } else {
+      console.error(`Lỗi khi tra cứu MAC vendor cho ${mac}:`, error);
+    }
+  }
+
+  // Thử sử dụng cơ sở dữ liệu OUI local nếu có
+  // TODO: Thêm logic tra cứu OUI local
+
+  return null;
+}
+
+/**
+ * Xác định thông tin thiết bị dựa trên các thông tin đã có
+ */
 export async function identifyDevice(device: NetworkDeviceDetails): Promise<NetworkDeviceDetails | null> {
+  if (!device) return null;
+
   try {
-    const enhancedDevice = { ...device };
-    
-    // Phương pháp 1: Xác định nhà sản xuất từ MAC Address
-    if (device.macAddress && !device.vendor) {
-      const vendor = await getVendorFromMac(device.macAddress);
+    // Thêm thông tin về nhà sản xuất nếu chưa có
+    if (!device.vendor && device.macAddress) {
+      const vendor = await getMacVendor(device.macAddress);
       if (vendor) {
-        enhancedDevice.vendor = vendor;
+        device.vendor = vendor;
       }
     }
-    
-    // Phương pháp 2: Thử các port phổ biến
-    if (device.ipAddress) {
-      const openPorts = await discovery.scanCommonPorts(device.ipAddress);
-      
-      if (!enhancedDevice.metadata) {
-        enhancedDevice.metadata = {};
-      }
-      
-      enhancedDevice.metadata.openPorts = openPorts;
-      
-      // Dựa vào port để xác định loại thiết bị
-      enhancedDevice.deviceType = determineDeviceTypeFromPorts(openPorts, enhancedDevice.deviceType);
-    }
-    
-    // Phương pháp 3: Lấy hostname nếu chưa có
-    if (device.ipAddress && !device.hostName) {
-      const hostname = await discovery.getDeviceHostname(device.ipAddress);
-      if (hostname) {
-        enhancedDevice.hostName = hostname;
-      }
-    }
-    
-    return enhancedDevice;
-  } catch (error) {
-    console.error('Error identifying device:', error);
-    return null;
-  }
-}
 
-// Lấy tên nhà sản xuất từ MAC Address
-async function getVendorFromMac(macAddress: string): Promise<string | null> {
-  try {
-    // Chuẩn hóa MAC address
-    const normalizedMac = macAddress.replace(/[:-]/g, '').toUpperCase();
-    const prefix = normalizedMac.substring(0, 6);
-    
-    // Đọc cơ sở dữ liệu OUI (từ file OUI đã cache)
-    const ouiDbPath = path.join(process.cwd(), 'assets', 'oui-database.json');
-    
-    if (fs.existsSync(ouiDbPath)) {
-      const ouiDb = JSON.parse(fs.readFileSync(ouiDbPath, 'utf8'));
-      return ouiDb[prefix] || null;
-    }
-    
-    return null;
-  } catch (error) {
-    console.error('Error getting vendor from MAC:', error);
-    return null;
-  }
-}
+    // TODO: Thêm logic nhận dạng thiết bị dựa trên các đặc điểm khác
 
-// Xác định loại thiết bị dựa vào các port đang mở
-function determineDeviceTypeFromPorts(ports: number[], currentType: string | undefined): string | undefined {
-  if (!ports || ports.length === 0) {
-    return currentType;
+    // Xác định trạng thái online/offline
+    if (device.lastSeen) {
+      const now = new Date();
+      const lastSeenTime = new Date(device.lastSeen).getTime();
+      const thresholdTime = now.getTime() - (30 * 60 * 1000); // 30 phút
+      
+      device.isOnline = lastSeenTime >= thresholdTime;
+    }
+
+    return device;
+  } catch (error) {
+    console.error(`Lỗi khi xác định thông tin thiết bị ${device.ipAddress}:`, error);
+    return device;
   }
-  
-  // Nếu đã có loại thiết bị, giữ nguyên
-  if (currentType && currentType !== 'unknown') {
-    return currentType;
-  }
-  
-  // Chuỗi các port đang mở
-  const portsStr = ports.join(',');
-  
-  // Router hoặc network device
-  if (ports.includes(80) && (ports.includes(443) || ports.includes(8291) || ports.includes(8728) || ports.includes(8729))) {
-    return 'Router';
-  }
-  
-  // Printer
-  if (ports.includes(631) || ports.includes(9100)) {
-    return 'Printer';
-  }
-  
-  // Camera
-  if (ports.includes(554) || (ports.includes(80) && ports.includes(8000))) {
-    return 'Camera';
-  }
-  
-  // NAS/Storage
-  if (ports.includes(445) || ports.includes(139) || ports.includes(111)) {
-    return 'Storage';
-  }
-  
-  // Server
-  if (ports.includes(22) && (ports.includes(80) || ports.includes(443)) && ports.includes(3306)) {
-    return 'Server';
-  }
-  
-  // IoT device
-  if (ports.includes(1883) || ports.includes(8883)) {
-    return 'IoT';
-  }
-  
-  // VOIP/Phone
-  if (ports.includes(5060) || ports.includes(5061)) {
-    return 'Phone';
-  }
-  
-  // PC/Laptop - thường có ít port đang mở
-  if (ports.length < 5 && (ports.includes(135) || ports.includes(139) || ports.includes(445))) {
-    return 'Computer';
-  }
-  
-  // Mặc định
-  return currentType || 'Unknown';
 }

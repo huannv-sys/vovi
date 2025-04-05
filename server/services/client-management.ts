@@ -282,41 +282,35 @@ class ClientManagementService {
   // Scan the network for new devices
   async scanNetwork(subnet?: string): Promise<NetworkDeviceDetails[]> {
     try {
-      // Generate some mock devices for testing
-      console.log('Creating simulated network devices for testing purposes');
+      console.log(`Scanning network${subnet ? ` subnet ${subnet}` : ''}`);
       
-      const devices: NetworkDeviceDetails[] = [
-        {
-          ipAddress: '192.168.1.1',
-          macAddress: '00:11:22:33:44:55',
-          hostname: 'router.local',
-          vendor: 'MikroTik',
-          deviceType: 'network',
-          firstSeen: new Date(),
-          lastSeen: new Date()
-        },
-        {
-          ipAddress: '192.168.1.10',
-          macAddress: '00:1A:2B:3C:4D:5E',
-          hostname: 'desktop.local',
-          vendor: 'Dell Inc.',
-          deviceType: 'computer',
-          firstSeen: new Date(),
-          lastSeen: new Date()
-        },
-        {
-          ipAddress: '192.168.1.20',
-          macAddress: 'F0:F1:F2:F3:F4:F5',
-          hostname: 'smartphone.local',
-          vendor: 'Apple Inc.',
-          deviceType: 'smartphone',
-          firstSeen: new Date(),
-          lastSeen: new Date()
-        }
-      ];
+      // Import at runtime to avoid circular dependencies
+      const { detectNewDevices, scanStaticIpDevices, saveNewDevices } = await import('./client-scanner');
       
-      console.log(`Generated ${devices.length} test devices for network scan`);
-      return devices;
+      // Phát hiện thiết bị từ ARP và DHCP
+      const arpDevices = await detectNewDevices();
+      console.log(`Found ${arpDevices.length} devices from ARP/DHCP tables`);
+      
+      // Lấy danh sách các thiết bị MikroTik
+      const mikrotikDevices = await db.select()
+        .from(networkDevices)
+        .where(eq(networkDevices.deviceType, 'router'));
+      
+      // Quét các thiết bị với IP tĩnh nếu có subnet
+      let staticDevices: NetworkDeviceDetails[] = [];
+      if (subnet && mikrotikDevices.length > 0) {
+        staticDevices = await scanStaticIpDevices(subnet, mikrotikDevices[0].id);
+        console.log(`Found ${staticDevices.length} devices with static IP`);
+      }
+      
+      // Kết hợp kết quả từ cả hai nguồn
+      const allDevices = [...arpDevices, ...staticDevices];
+      
+      // Lưu các thiết bị mới vào cơ sở dữ liệu
+      const savedCount = await saveNewDevices(allDevices);
+      console.log(`Saved ${savedCount} new devices to database`);
+      
+      return allDevices;
     } catch (error) {
       console.error('Error scanning network:', error);
       return [];

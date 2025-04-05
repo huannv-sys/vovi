@@ -11,6 +11,7 @@ import { alertSeverity } from "@shared/schema";
 import { wirelessService } from "./wireless";
 import { capsmanService } from "./capsman";
 import { deviceInfoService } from "./device_info";
+import { ArpEntry, DhcpLease } from '../mikrotik-api-types';
 
 // Sử dụng thư viện node-routeros để kết nối với RouterOS
 import * as RouterOS from 'node-routeros';
@@ -1338,18 +1339,165 @@ export class MikrotikService {
 export const mikrotikService = new MikrotikService();
 
 // Lấy thông tin thiết bị MikroTik
-export async function getMikrotikDevice(deviceId: number) {
+// Đã chuyển hàm này xuống dưới
+
+// Lấy danh sách DHCP lease từ thiết bị MikroTik
+/**
+ * Lấy danh sách tất cả các thiết bị MikroTik
+ */
+export async function getMikrotikDevices(): Promise<any[]> {
   try {
-    const device = await storage.getDevice(deviceId);
-    return device;
+    // Sử dụng storage.getAllDevices()
+    const allDevices = await storage.getAllDevices();
+    // Lọc các thiết bị có loại 'router'
+    return allDevices.filter(device => device.deviceType === 'router');
+  } catch (error) {
+    console.error('Error getting MikroTik devices:', error);
+    return [];
+  }
+}
+
+/**
+ * Lấy thiết bị MikroTik theo ID
+ */
+export async function getMikrotikDevice(deviceId: number): Promise<any> {
+  try {
+    return await storage.getDevice(deviceId);
   } catch (error) {
     console.error(`Error getting MikroTik device ${deviceId}:`, error);
     return null;
   }
 }
 
-// Lấy danh sách DHCP lease từ thiết bị MikroTik
-export async function getDhcpLeases(device: any) {
+/**
+ * Lấy danh sách các thiết bị láng giềng của một thiết bị MikroTik
+ * (bao gồm các thiết bị từ ARP table và DHCP leases)
+ */
+export async function getNetworkNeighbors(device: any): Promise<any[]> {
+  try {
+    const neighbors: any[] = [];
+    const macAddresses = new Set<string>();
+    
+    // Lấy bản ghi ARP
+    const arpEntries = await getArpTable(device);
+    for (const entry of arpEntries) {
+      if (entry.macAddress && !macAddresses.has(entry.macAddress)) {
+        macAddresses.add(entry.macAddress);
+        neighbors.push({
+          ipAddress: entry.address,
+          macAddress: entry.macAddress,
+          interface: entry.interface,
+          source: 'arp'
+        });
+      }
+    }
+    
+    // Lấy DHCP leases
+    const dhcpLeases = await getDhcpLeasesFromDevice(device);
+    for (const lease of dhcpLeases) {
+      if (lease.macAddress && !macAddresses.has(lease.macAddress)) {
+        macAddresses.add(lease.macAddress);
+        neighbors.push({
+          ipAddress: lease.address,
+          macAddress: lease.macAddress,
+          hostName: lease.hostName,
+          source: 'dhcp'
+        });
+      }
+    }
+    
+    return neighbors;
+  } catch (error) {
+    console.error(`Error getting network neighbors for device ${device.id}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Lấy danh sách các bản ghi ARP từ thiết bị MikroTik
+ */
+export async function getArpEntries(deviceId: number): Promise<ArpEntry[]> {
+  try {
+    const mikrotikService = new MikrotikService();
+    
+    // Kết nối đến thiết bị
+    let connected = await mikrotikService.connectToDevice(deviceId);
+    if (!connected) {
+      console.error(`Could not connect to device ${deviceId}`);
+      return [];
+    }
+    
+    // Gửi lệnh để lấy bảng ARP
+    const arpEntries = await mikrotikService.sendCommand(deviceId, '/ip/arp/print');
+    
+    if (!Array.isArray(arpEntries)) {
+      console.error('Invalid ARP entries response format');
+      return [];
+    }
+    
+    return arpEntries.map((entry: any): ArpEntry => ({
+      id: entry['.id'] || '',
+      address: entry.address || '',
+      macAddress: entry['mac-address'] || '',
+      interface: entry.interface || '',
+      complete: entry.complete || '',
+      disabled: entry.disabled || '',
+      dynamic: entry.dynamic || '',
+      invalid: entry.invalid || '',
+      lastSeen: new Date()
+    }));
+  } catch (error) {
+    console.error(`Error getting ARP entries from device ${deviceId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Lấy danh sách DHCP leases từ thiết bị MikroTik theo ID
+ */
+export async function getDhcpLeases(deviceId: number): Promise<DhcpLease[]> {
+  try {
+    const mikrotikService = new MikrotikService();
+    
+    // Kết nối đến thiết bị
+    let connected = await mikrotikService.connectToDevice(deviceId);
+    if (!connected) {
+      console.error(`Could not connect to device ${deviceId}`);
+      return [];
+    }
+    
+    // Gửi lệnh để lấy danh sách DHCP leases
+    const leases = await mikrotikService.sendCommand(deviceId, '/ip/dhcp-server/lease/print');
+    
+    if (!Array.isArray(leases)) {
+      console.error('Invalid DHCP leases response format');
+      return [];
+    }
+    
+    return leases.map((lease: any): DhcpLease => ({
+      id: lease['.id'] || '',
+      address: lease.address || '',
+      macAddress: lease['mac-address'] || '',
+      clientId: lease['client-id'] || '',
+      hostName: lease['host-name'] || '',
+      comment: lease.comment || '',
+      status: lease.status || 'unknown',
+      server: lease.server || '',
+      disabled: lease.disabled === 'true',
+      dynamic: lease.dynamic === 'true',
+      blocked: lease.blocked === 'true',
+      lastSeen: new Date()
+    }));
+  } catch (error) {
+    console.error(`Error getting DHCP leases from device ${deviceId}:`, error);
+    return [];
+  }
+}
+
+/**
+ * Lấy danh sách DHCP leases từ thiết bị MikroTik (phiên bản cũ)
+ */
+export async function getDhcpLeasesFromDevice(device: any) {
   try {
     const client = new MikrotikClient(device.ipAddress, device.username, device.password);
     const connected = await client.connect();

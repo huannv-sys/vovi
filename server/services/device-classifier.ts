@@ -1,281 +1,235 @@
-import { NetworkDeviceDetails } from '../mikrotik-api-types';
+import { getMacVendor } from './device-identification';
 
-/**
- * Phân loại thiết bị dựa vào thông tin thu thập được
- * @param device Thông tin thiết bị
- * @returns Loại thiết bị đã phân loại
- */
-export async function classifyDevice(device: NetworkDeviceDetails): Promise<string | null> {
-  try {
-    // Đã có loại thiết bị được xác định rõ ràng
-    if (device.deviceType && device.deviceType !== 'Unknown' && device.deviceType !== 'unknown') {
-      return device.deviceType;
-    }
-    
-    // 1. Phân loại dựa trên hãng sản xuất
-    if (device.vendor) {
-      const vendorLower = device.vendor.toLowerCase();
-      
-      // Nhà sản xuất thiết bị mạng phổ biến
-      if (
-        vendorLower.includes('mikrotik') ||
-        vendorLower.includes('cisco') ||
-        vendorLower.includes('aruba') ||
-        vendorLower.includes('ubiquiti') ||
-        vendorLower.includes('ruckus') ||
-        vendorLower.includes('juniper') ||
-        vendorLower.includes('huawei') ||
-        vendorLower.includes('fortinet')
-      ) {
-        return 'Router';
-      }
-      
-      // Nhà sản xuất thiết bị điện thoại/di động
-      if (
-        vendorLower.includes('apple') ||
-        vendorLower.includes('samsung') ||
-        vendorLower.includes('xiaomi') ||
-        vendorLower.includes('oppo') ||
-        vendorLower.includes('nokia') ||
-        vendorLower.includes('motorola') ||
-        vendorLower.includes('oneplus') ||
-        vendorLower.includes('vivo')
-      ) {
-        return 'Mobile';
-      }
-      
-      // Nhà sản xuất laptop/PC
-      if (
-        vendorLower.includes('dell') ||
-        vendorLower.includes('lenovo') ||
-        vendorLower.includes('acer') ||
-        vendorLower.includes('asus') ||
-        vendorLower.includes('hp') ||
-        vendorLower.includes('intel') ||
-        vendorLower.includes('microsoft')
-      ) {
-        return 'Computer';
-      }
-      
-      // Nhà sản xuất thiết bị IoT
-      if (
-        vendorLower.includes('espressif') ||
-        vendorLower.includes('raspberry') ||
-        vendorLower.includes('arduino') ||
-        vendorLower.includes('shenzhen') ||
-        vendorLower.includes('tuya') ||
-        vendorLower.includes('sonoff')
-      ) {
-        return 'IoT';
-      }
-      
-      // Nhà sản xuất máy in
-      if (
-        vendorLower.includes('brother') ||
-        vendorLower.includes('canon') ||
-        vendorLower.includes('epson') ||
-        vendorLower.includes('ricoh') ||
-        vendorLower.includes('xerox') ||
-        vendorLower.includes('hewlett packard') ||
-        vendorLower.includes('kyocera')
-      ) {
-        return 'Printer';
-      }
-      
-      // Nhà sản xuất camera
-      if (
-        vendorLower.includes('hikvision') ||
-        vendorLower.includes('axis') ||
-        vendorLower.includes('dahua') ||
-        vendorLower.includes('avigilon') ||
-        vendorLower.includes('bosch') ||
-        vendorLower.includes('vivotek') ||
-        vendorLower.includes('hanwha')
-      ) {
-        return 'Camera';
-      }
-    }
-    
-    // 2. Phân loại dựa trên metadata (nếu có)
-    if (device.metadata) {
-      // Phân loại dựa trên port đang mở
-      if (device.metadata.openPorts && Array.isArray(device.metadata.openPorts)) {
-        const ports = device.metadata.openPorts;
-        
-        // Router hoặc network device
-        if (
-          ports.includes(80) && 
-          (ports.includes(443) || ports.includes(8291) || ports.includes(8728) || ports.includes(8729))
-        ) {
-          return 'Router';
-        }
-        
-        // Printer
-        if (ports.includes(631) || ports.includes(9100)) {
-          return 'Printer';
-        }
-        
-        // Camera
-        if (ports.includes(554) || (ports.includes(80) && ports.includes(8000))) {
-          return 'Camera';
-        }
-        
-        // NAS/Storage
-        if (ports.includes(445) || ports.includes(139) || ports.includes(111)) {
-          return 'Storage';
-        }
-        
-        // Server
-        if (ports.includes(22) && (ports.includes(80) || ports.includes(443)) && ports.includes(3306)) {
-          return 'Server';
-        }
-        
-        // IoT device
-        if (ports.includes(1883) || ports.includes(8883)) {
-          return 'IoT';
-        }
-        
-        // VOIP/Phone
-        if (ports.includes(5060) || ports.includes(5061)) {
-          return 'Phone';
-        }
-        
-        // PC/Laptop - thường có ít port đang mở
-        if (ports.length < 5 && (ports.includes(135) || ports.includes(139) || ports.includes(445))) {
-          return 'Computer';
-        }
-      }
-      
-      // Phân loại dựa trên thông tin SNMP (nếu có)
-      if (device.metadata.snmpData) {
-        const snmpData = device.metadata.snmpData;
-        
-        if (snmpData.sysDescr) {
-          const sysDescr = snmpData.sysDescr.toLowerCase();
-          
-          if (
-            sysDescr.includes('router') || 
-            sysDescr.includes('switch') || 
-            sysDescr.includes('gateway')
-          ) {
-            return 'Router';
-          }
-          
-          if (sysDescr.includes('printer') || sysDescr.includes('printing')) {
-            return 'Printer';
-          }
-          
-          if (sysDescr.includes('camera') || sysDescr.includes('surveillance')) {
-            return 'Camera';
-          }
-          
-          if (sysDescr.includes('server') || sysDescr.includes('windows') || sysDescr.includes('linux')) {
-            return 'Server';
-          }
-        }
-      }
-    }
-    
-    // 3. Phân loại dựa trên hostname (nếu có)
-    if (device.hostName) {
-      const hostnameLower = device.hostName.toLowerCase();
-      
-      if (
-        hostnameLower.includes('router') || 
-        hostnameLower.includes('gateway') || 
-        hostnameLower.includes('mikrotik') || 
-        hostnameLower.includes('ap') || 
-        hostnameLower.includes('wifi')
-      ) {
-        return 'Router';
-      }
-      
-      if (
-        hostnameLower.includes('printer') || 
-        hostnameLower.includes('print') || 
-        hostnameLower.includes('scan')
-      ) {
-        return 'Printer';
-      }
-      
-      if (
-        hostnameLower.includes('cam') || 
-        hostnameLower.includes('camera') || 
-        hostnameLower.includes('ipcam')
-      ) {
-        return 'Camera';
-      }
-      
-      if (hostnameLower.includes('phone') || hostnameLower.includes('voip')) {
-        return 'Phone';
-      }
-      
-      if (hostnameLower.includes('laptop') || hostnameLower.includes('desktop')) {
-        return 'Computer';
-      }
-      
-      if (
-        hostnameLower.includes('server') || 
-        hostnameLower.includes('srv') || 
-        hostnameLower.includes('nas')
-      ) {
-        return 'Server';
-      }
-    }
-    
-    // Không thể xác định loại thiết bị
-    return device.deviceType || 'Unknown';
-  } catch (error) {
-    console.error('Error classifying device:', error);
-    return null;
-  }
+interface DeviceClassification {
+  deviceType: string;
+  deviceRole?: string;
+  confidenceScore?: number;
 }
 
-/**
- * Xác định các phương thức giám sát thích hợp cho một loại thiết bị
- * @param role Vai trò/Loại thiết bị
- * @returns Danh sách các phương thức giám sát
- */
-export function getMonitoringMethodsForRole(role: string | null): string[] {
-  if (!role) return ['ping']; // Mặc định dùng ping nếu không có role
-  const roleLower = role.toLowerCase();
+// Danh sách các loại thiết bị
+export enum DeviceType {
+  Unknown = 'Unknown',
+  Router = 'Router',
+  Switch = 'Switch',
+  AccessPoint = 'AccessPoint',
+  Server = 'Server',
+  Desktop = 'Desktop',
+  Laptop = 'Laptop',
+  Mobile = 'Mobile',
+  Tablet = 'Tablet',
+  IOT = 'IOT',
+  Camera = 'Camera',
+  Printer = 'Printer',
+  SmartTV = 'SmartTV',
+  VoIP = 'VoIP'
+}
+
+// Danh sách các vai trò thiết bị
+export enum DeviceRole {
+  Unknown = 'unknown',
+  Endpoint = 'endpoint',
+  Infrastructure = 'infrastructure',
+  Server = 'server',
+  Mobile = 'mobile',
+  IoT = 'iot',
+  Storage = 'storage',
+  Printer = 'printer',
+  Multimedia = 'multimedia',
+  Security = 'security',
+  Network = 'network',
+  VoIP = 'voip',
+  Router = 'router'
+}
+
+// Danh sách các nhà sản xuất và loại thiết bị tương ứng
+const vendorToDeviceTypeMap: Record<string, DeviceType> = {
+  // Networking
+  'Cisco': DeviceType.Router,
+  'Mikrotik': DeviceType.Router,
+  'Ubiquiti': DeviceType.Router,
+  'TP-Link': DeviceType.Router,
+  'D-Link': DeviceType.Router,
+  'ASUS': DeviceType.Router,
+  'NETGEAR': DeviceType.Router,
+  'Aruba': DeviceType.AccessPoint,
+  'Huawei': DeviceType.Router,
+  'Linksys': DeviceType.Router,
+  'ZyXEL': DeviceType.Router,
+  'Juniper': DeviceType.Router,
+  'Fortinet': DeviceType.Router,
+  'Meraki': DeviceType.AccessPoint,
   
-  switch (roleLower) {
-    case 'router':
-    case 'network':
-      return ['ping', 'snmp', 'api', 'traffic'];
-      
-    case 'switch':
-      return ['ping', 'snmp', 'traffic'];
-      
-    case 'access point':
-    case 'accesspoint':
-    case 'wireless':
-      return ['ping', 'snmp', 'traffic', 'wireless'];
-      
-    case 'server':
-      return ['ping', 'snmp', 'traffic', 'services'];
-      
-    case 'computer':
-    case 'desktop':
-    case 'laptop':
-      return ['ping', 'traffic'];
-      
-    case 'mobile':
-    case 'phone':
-    case 'smartphone':
-      return ['ping', 'traffic'];
-      
-    case 'camera':
-      return ['ping', 'rtsp'];
-      
-    case 'iot':
-      return ['ping', 'mqtt'];
-      
-    case 'printer':
-      return ['ping', 'snmp'];
-      
-    default:
-      return ['ping']; // Mặc định chỉ dùng ping cho các thiết bị không xác định
+  // Mobile devices
+  'Apple': DeviceType.Mobile,
+  'Samsung': DeviceType.Mobile,
+  'Google': DeviceType.Mobile,
+  'OnePlus': DeviceType.Mobile,
+  'Xiaomi': DeviceType.Mobile,
+  'Oppo': DeviceType.Mobile,
+  'Vivo': DeviceType.Mobile,
+  'LG': DeviceType.Mobile,
+  'Motorola': DeviceType.Mobile,
+  'Nokia': DeviceType.Mobile,
+  'Honor': DeviceType.Mobile,
+  'Realme': DeviceType.Mobile,
+  
+  // PC/Laptop
+  'Dell': DeviceType.Desktop,
+  'HP': DeviceType.Desktop,
+  'Lenovo': DeviceType.Laptop,
+  'Intel': DeviceType.Desktop,
+  'ASUS Computer': DeviceType.Laptop,
+  'Gigabyte': DeviceType.Desktop,
+  'Acer': DeviceType.Laptop,
+  'MSI': DeviceType.Laptop,
+  'Microsoft': DeviceType.Laptop,
+  
+  // Printers
+  'HP Inc': DeviceType.Printer,
+  'Brother': DeviceType.Printer,
+  'Canon': DeviceType.Printer,
+  'Epson': DeviceType.Printer,
+  'Xerox': DeviceType.Printer,
+  'Kyocera': DeviceType.Printer,
+  
+  // IoT devices
+  'Amazon': DeviceType.IOT,
+  'Google Home': DeviceType.IOT,
+  'Nest': DeviceType.IOT,
+  'Ecobee': DeviceType.IOT,
+  'Ring': DeviceType.IOT,
+  'Philips': DeviceType.IOT,
+  'Sonos': DeviceType.IOT,
+
+  // Cameras
+  'Hikvision': DeviceType.Camera,
+  'Dahua': DeviceType.Camera,
+  'Axis': DeviceType.Camera,
+  'Bosch': DeviceType.Camera,
+  'GoPro': DeviceType.Camera,
+  'Logitech': DeviceType.Camera,
+  
+  // Smart TVs
+  'Sony': DeviceType.SmartTV,
+  'Vizio': DeviceType.SmartTV,
+  'TCL': DeviceType.SmartTV,
+  'Hisense': DeviceType.SmartTV,
+  'Panasonic': DeviceType.SmartTV,
+  'Sharp': DeviceType.SmartTV,
+  
+  // VoIP
+  'Cisco Systems': DeviceType.VoIP,
+  'Polycom': DeviceType.VoIP,
+  'Avaya': DeviceType.VoIP,
+  'Grandstream': DeviceType.VoIP,
+  'Yealink': DeviceType.VoIP
+};
+
+// Ánh xạ từ DeviceType sang DeviceRole
+const deviceTypeToRoleMap: Record<string, DeviceRole> = {
+  [DeviceType.Unknown]: DeviceRole.Unknown,
+  [DeviceType.Router]: DeviceRole.Router,
+  [DeviceType.Switch]: DeviceRole.Network,
+  [DeviceType.AccessPoint]: DeviceRole.Network,
+  [DeviceType.Server]: DeviceRole.Server,
+  [DeviceType.Desktop]: DeviceRole.Endpoint,
+  [DeviceType.Laptop]: DeviceRole.Endpoint,
+  [DeviceType.Mobile]: DeviceRole.Mobile,
+  [DeviceType.Tablet]: DeviceRole.Mobile,
+  [DeviceType.IOT]: DeviceRole.IoT,
+  [DeviceType.Camera]: DeviceRole.Security,
+  [DeviceType.Printer]: DeviceRole.Printer,
+  [DeviceType.SmartTV]: DeviceRole.Multimedia,
+  [DeviceType.VoIP]: DeviceRole.VoIP
+};
+
+/**
+ * Phân loại thiết bị dựa trên thông tin MAC address, địa chỉ IP và nhà sản xuất
+ * 
+ * @param macAddress Địa chỉ MAC của thiết bị
+ * @param ipAddress Địa chỉ IP của thiết bị
+ * @param vendor Tên nhà sản xuất (nếu đã biết)
+ * @returns Kết quả phân loại thiết bị
+ */
+export async function classifyDevice(macAddress: string, ipAddress: string, vendor?: string): Promise<DeviceClassification> {
+  // Nếu không cung cấp vendor, tra cứu từ MAC address
+  if (!vendor) {
+    vendor = await getMacVendor(macAddress);
   }
+  
+  // Kết quả phân loại mặc định
+  const result: DeviceClassification = {
+    deviceType: DeviceType.Unknown,
+    deviceRole: DeviceRole.Unknown,
+    confidenceScore: 0.5
+  };
+  
+  // Phân loại dựa trên nhà sản xuất
+  if (vendor) {
+    // Tìm kiếm trong danh sách các nhà sản xuất đã biết
+    for (const [vendorPattern, deviceType] of Object.entries(vendorToDeviceTypeMap)) {
+      if (vendor.includes(vendorPattern)) {
+        result.deviceType = deviceType;
+        result.deviceRole = deviceTypeToRoleMap[deviceType];
+        result.confidenceScore = 0.8;
+        break;
+      }
+    }
+  }
+  
+  // Phân tích địa chỉ IP để có thêm thông tin
+  // - Các địa chỉ IP cụ thể có thể chỉ ra vai trò, ví dụ: x.x.x.1 thường là router/gateway
+  if (ipAddress) {
+    const ipParts = ipAddress.split('.');
+    const lastOctet = Number(ipParts[3]);
+    
+    // Địa chỉ IP thấp (1-5) thường là thiết bị mạng hoặc server
+    if (lastOctet <= 5) {
+      if (result.deviceType === DeviceType.Unknown) {
+        result.deviceType = DeviceType.Router;
+        result.deviceRole = DeviceRole.Router;
+        result.confidenceScore = 0.6;
+      } else {
+        // Tăng độ tin cậy nếu đã phân loại từ vendor
+        result.confidenceScore = Math.min(0.9, (result.confidenceScore || 0) + 0.1);
+      }
+    }
+    
+    // Địa chỉ IP cao (220+) thường là thiết bị endpoint
+    if (lastOctet >= 220) {
+      if (result.deviceType === DeviceType.Unknown) {
+        result.deviceType = DeviceType.Desktop;
+        result.deviceRole = DeviceRole.Endpoint;
+        result.confidenceScore = 0.5;
+      }
+    }
+  }
+  
+  // Phân tích OUI (Organizationally Unique Identifier) từ MAC address
+  // OUI là 3 byte đầu tiên của MAC address
+  const oui = macAddress.substring(0, 8).toUpperCase();
+  
+  // Một số OUI đặc biệt của các thiết bị phổ biến
+  const specialOUIs: Record<string, DeviceType> = {
+    '00:0C:29': DeviceType.Server, // VMware
+    '00:50:56': DeviceType.Server, // VMware
+    '00:1A:11': DeviceType.IOT,    // Google Home
+    '18:B4:30': DeviceType.IOT,    // Nest
+    'B8:27:EB': DeviceType.IOT,    // Raspberry Pi
+    'DC:A6:32': DeviceType.IOT,    // Raspberry Pi
+    '00:04:F2': DeviceType.Printer, // Polycom
+    '00:90:4C': DeviceType.VoIP,   // Epox
+  };
+  
+  // Kiểm tra OUI đặc biệt
+  for (const [ouiPattern, deviceType] of Object.entries(specialOUIs)) {
+    if (oui.startsWith(ouiPattern.substring(0, 6))) {
+      result.deviceType = deviceType;
+      result.deviceRole = deviceTypeToRoleMap[deviceType];
+      result.confidenceScore = 0.85;
+      break;
+    }
+  }
+  
+  return result;
 }

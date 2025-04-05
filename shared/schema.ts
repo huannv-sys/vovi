@@ -271,6 +271,7 @@ export const networkDevices = pgTable("network_devices", {
   deviceData: jsonb("device_data"), // Lưu dữ liệu bổ sung
   metadata: jsonb("metadata"), // Thông tin từ các nguồn khác nhau
   isManaged: boolean("is_managed").default(false), // Thiết bị có được quản lý bởi MMCS không
+  isOnline: boolean("is_online").default(false), // Trạng thái online/offline của thiết bị
   managedDeviceId: integer("managed_device_id"), // ID tương ứng trong bảng devices nếu được quản lý
 });
 
