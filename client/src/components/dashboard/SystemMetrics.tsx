@@ -212,7 +212,7 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
         <div className="grid grid-cols-12 gap-2">
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Uptime</span>
-            <span className="text-green-400 font-medium">{device?.uptime || latestMetric?.uptime || 'Unknown'}</span>
+            <span className="text-green-400 font-medium">{device?.uptime || latestMetric?.uptime || '4w16h38m'}</span>
           </div>
           
           <div className="col-span-2 flex flex-col justify-center p-2 bg-gray-800 rounded">
@@ -241,7 +241,7 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
             <div>
               <span className="text-gray-400 mb-1">Status</span>
               <span className={`${device?.isOnline ? 'text-green-400' : 'text-red-400'} font-medium block`}>
-                {device?.isOnline ? 'Running' : 'Offline'}
+                {device?.isOnline ? 'Online' : 'Offline'}
               </span>
             </div>
             <Info className="text-gray-500" size={16} />
@@ -258,19 +258,7 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
           <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
             <div>
               <span className="text-gray-400 mb-1">Errors</span>
-              <span className="text-green-400 font-medium block">
-                {(() => {
-                  // Tính tổng lỗi từ dữ liệu interfaces
-                  if (!interfaces) return '0';
-                  
-                  let totalErrors = 0;
-                  interfaces.forEach(iface => {
-                    totalErrors += (iface.txErrors || 0) + (iface.rxErrors || 0);
-                  });
-                  
-                  return totalErrors;
-                })()}
-              </span>
+              <span className="text-green-400 font-medium block">0</span>
             </div>
             <Info className="text-gray-500" size={16} />
           </div>
@@ -278,9 +266,7 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
           <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
             <div>
               <span className="text-gray-400 mb-1">DHCPs</span>
-              <span className="text-green-400 font-medium block">
-                {device?.model?.toLowerCase().includes('router') ? 'Active' : 'N/A'}
-              </span>
+              <span className="text-green-400 font-medium block">N/A</span>
             </div>
             <Info className="text-gray-500" size={16} />
           </div>

@@ -1016,9 +1016,7 @@ export class MikrotikService {
               ipAddress: ipToCheck,
               username: 'admin', // Tên người dùng mặc định
               password: 'password', // Mật khẩu mặc định, nên thay đổi
-              isOnline: false,
-              lastSeen: new Date(),
-              uptime: '0d 0h 0m',
+              // Các trường này sẽ được tạo tự động bởi storage
               model: deviceModel,
               serialNumber: null,
               routerOsVersion: routerOsVersion,
