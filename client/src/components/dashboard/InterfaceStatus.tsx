@@ -24,7 +24,7 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
       <div className="px-4 py-3 border-b border-gray-200">
-        <h3 className="font-medium text-neutral-dark">Interface Status</h3>
+        <h3 className="font-medium text-neutral-dark">Tình trạng Interface</h3>
       </div>
       <div className="p-4">
         {isLoading ? (
@@ -37,10 +37,12 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center">
                   <div className={`w-2 h-2 rounded-full ${iface.isUp ? 'bg-green-500' : 'bg-red-500'} mr-2`}></div>
-                  <span className="font-medium text-sm text-neutral-dark">{iface.name}</span>
+                  <span className="font-medium text-sm text-neutral-dark">
+                    {iface.name || 'Interface không tên'} ({iface.type || 'Unknown type'})
+                  </span>
                 </div>
                 <span className="text-xs text-gray-500">
-                  {iface.isUp ? iface.speed : 'Disconnected'}
+                  {iface.isUp ? iface.speed : 'Ngắt kết nối'}
                 </span>
               </div>
               <div className="flex items-center text-xs text-gray-500">
@@ -51,7 +53,7 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
           ))
         ) : (
           <div className="text-sm text-gray-500 text-center py-8">
-            No interfaces available
+            Không có thông tin interface
           </div>
         )}
       </div>
