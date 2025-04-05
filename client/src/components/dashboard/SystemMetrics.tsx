@@ -34,6 +34,12 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
     refetchInterval: 3000, // Refresh every 3 seconds to get latest data in near real-time
   });
   
+  // Fetch interfaces data to calculate errors
+  const { data: interfaces } = useQuery<any[]>({
+    queryKey: deviceId ? [`/api/devices/${deviceId}/interfaces`] : ['empty-interfaces'],
+    enabled: !!deviceId,
+  });
+  
   useEffect(() => {
     if (metrics && metrics.length > 0) {
       // Log metrics để debug
@@ -217,19 +223,18 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
           <div className="col-span-2 flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">RouterOS date</span>
             <span className="text-green-400 font-medium">
-              {device?.lastSeen ? new Date(device.lastSeen).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '--:--:--'}<br />
-              {device?.lastSeen ? new Date(device.lastSeen).toLocaleDateString('en-GB') : 'Unknown'}
+              {device?.routerOsVersion ? device.routerOsVersion : 'Unknown'}
             </span>
           </div>
           
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Firmware</span>
-            <span className="text-green-400 font-medium">{device?.routerOsVersion || 'Unknown'}</span>
+            <span className="text-green-400 font-medium">{device?.firmware || 'Unknown'}</span>
           </div>
           
           <div className="flex flex-col justify-center p-2 bg-gray-800 rounded">
             <span className="text-gray-400 mb-1">Board</span>
-            <span className="text-green-400 font-medium">{device?.model || 'N/A'}</span>
+            <span className="text-green-400 font-medium">{device?.model ? device.model.split(' ')[0] : 'N/A'}</span>
           </div>
 
           <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
@@ -253,7 +258,19 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
           <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
             <div>
               <span className="text-gray-400 mb-1">Errors</span>
-              <span className="text-green-400 font-medium block">0</span>
+              <span className="text-green-400 font-medium block">
+                {(() => {
+                  // Tính tổng lỗi từ dữ liệu interfaces
+                  if (!interfaces) return '0';
+                  
+                  let totalErrors = 0;
+                  interfaces.forEach(iface => {
+                    totalErrors += (iface.txErrors || 0) + (iface.rxErrors || 0);
+                  });
+                  
+                  return totalErrors;
+                })()}
+              </span>
             </div>
             <Info className="text-gray-500" size={16} />
           </div>
@@ -261,7 +278,9 @@ const SystemMetrics: React.FC<SystemMetricsProps> = ({ deviceId }) => {
           <div className="flex items-center justify-between p-2 bg-gray-800 rounded">
             <div>
               <span className="text-gray-400 mb-1">DHCPs</span>
-              <span className="text-green-400 font-medium block">0</span>
+              <span className="text-green-400 font-medium block">
+                {device?.model?.toLowerCase().includes('router') ? 'Active' : 'N/A'}
+              </span>
             </div>
             <Info className="text-gray-500" size={16} />
           </div>
