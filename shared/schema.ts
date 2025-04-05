@@ -133,7 +133,14 @@ export const interfaces = pgTable("interfaces", {
   comment: text("comment"),
   txBytes: real("tx_bytes").default(0),
   rxBytes: real("rx_bytes").default(0),
+  txPackets: integer("tx_packets").default(0),
+  rxPackets: integer("rx_packets").default(0),
+  txDrops: integer("tx_drops").default(0),
+  rxDrops: integer("rx_drops").default(0),
+  txErrors: integer("tx_errors").default(0),
+  rxErrors: integer("rx_errors").default(0),
   linkDowns: integer("link_downs").default(0),
+  healthScore: integer("health_score"),
   lastUpdated: timestamp("last_updated").defaultNow(),
 });
 

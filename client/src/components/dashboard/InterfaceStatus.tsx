@@ -17,12 +17,29 @@ const formatBytes = (bytes: number) => {
 
 const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
   const { data: interfaces, isLoading } = useQuery<Interface[]>({ 
-    queryKey: [`/api/devices/${deviceId ?? 0}/interfaces`],
+    queryKey: [`/api/devices/${deviceId ?? 0}/interfaces`, { includeHealth: true }],
     enabled: !!deviceId,
   });
-
-  // Thêm log để debug
-  console.log('Interfaces data:', interfaces);
+  
+  // Get the color class based on health score
+  const getHealthScoreColorClass = (score: number | null | undefined): string => {
+    if (score === null || score === undefined) return 'text-gray-400';
+    if (score >= 90) return 'text-green-500';
+    if (score >= 70) return 'text-blue-500';
+    if (score >= 50) return 'text-yellow-500';
+    if (score >= 20) return 'text-orange-500';
+    return 'text-red-500';
+  };
+  
+  // Get the health status text based on score
+  const getHealthStatusText = (score: number | null | undefined): string => {
+    if (score === null || score === undefined) return 'Unknown';
+    if (score >= 90) return 'Excellent';
+    if (score >= 70) return 'Good';
+    if (score >= 50) return 'Fair';
+    if (score >= 20) return 'Poor';
+    return 'Critical';
+  };
   
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -44,13 +61,25 @@ const InterfaceStatus: React.FC<InterfaceStatusProps> = ({ deviceId }) => {
                     {iface.name || 'Unknown Interface'}
                   </span>
                 </div>
-                <span className="text-xs text-gray-500">
-                  {iface.isUp ? iface.speed : 'Disconnected'}
-                </span>
+                <div className="flex items-center">
+                  <span className={`text-xs font-medium mr-2 ${getHealthScoreColorClass(iface.healthScore)}`}>
+                    {getHealthStatusText(iface.healthScore)}
+                  </span>
+                  <span className="text-xs text-gray-500">
+                    {iface.isUp ? iface.speed : 'Disconnected'}
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center text-xs text-gray-500">
-                <span className="mr-3">TX: {iface.txBytes != null ? formatBytes(iface.txBytes) : '0 B'}</span>
-                <span>RX: {iface.rxBytes != null ? formatBytes(iface.rxBytes) : '0 B'}</span>
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <div>
+                  <span className="mr-3">TX: {iface.txBytes != null ? formatBytes(iface.txBytes) : '0 B'}</span>
+                  <span>RX: {iface.rxBytes != null ? formatBytes(iface.rxBytes) : '0 B'}</span>
+                </div>
+                {iface.healthScore != null && (
+                  <span className={`px-2 py-0.5 rounded-full text-white text-xs ${getHealthScoreColorClass(iface.healthScore).replace('text-', 'bg-')}`}>
+                    {iface.healthScore}
+                  </span>
+                )}
               </div>
             </div>
           ))

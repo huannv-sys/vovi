@@ -7,6 +7,7 @@ import { wirelessService } from "./services/wireless";
 import { capsmanService } from "./services/capsman";
 import { schedulerService } from "./services/scheduler";
 import { deviceInfoService } from "./services/device_info";
+import { interfaceHealthService } from "./services/interface_health";
 import { insertDeviceSchema, insertAlertSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -121,9 +122,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const deviceId = parseInt(req.params.id);
       const interfaces = await storage.getInterfaces(deviceId);
+      
+      // Tính điểm sức khỏe cho mỗi interface
+      if (req.query.includeHealth === 'true') {
+        for (const iface of interfaces) {
+          const health = interfaceHealthService.calculateHealthScore(iface);
+          iface.healthScore = health.score;
+        }
+        // Lưu điểm sức khỏe vào cơ sở dữ liệu (nền)
+        for (const iface of interfaces) {
+          if (iface.healthScore !== undefined) {
+            await storage.updateInterface(iface.id, { healthScore: iface.healthScore });
+          }
+        }
+      }
+      
       res.json(interfaces);
     } catch (error) {
+      console.error("Error fetching interfaces:", error);
       res.status(500).json({ message: "Failed to fetch interfaces" });
+    }
+  });
+  
+  // Get interface health score
+  router.get("/interfaces/:id/health", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const iface = await storage.getInterface(id);
+      
+      if (!iface) {
+        return res.status(404).json({ message: "Interface not found" });
+      }
+      
+      const health = interfaceHealthService.calculateHealthScore(iface);
+      
+      // Update the health score in the database
+      await storage.updateInterface(id, { healthScore: health.score });
+      
+      res.json({
+        id: iface.id,
+        name: iface.name,
+        ...health
+      });
+    } catch (error) {
+      console.error("Error calculating interface health:", error);
+      res.status(500).json({ message: "Failed to calculate interface health" });
     }
   });
   
