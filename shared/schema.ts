@@ -245,6 +245,61 @@ export const insertCapsmanClientSchema = createInsertSchema(capsmanClients).omit
   lastActivity: true,
 });
 
+// Network Discovery - lưu thông tin về các thiết bị được phát hiện
+export const networkDevices = pgTable("network_devices", {
+  id: serial("id").primaryKey(),
+  ipAddress: text("ip_address").notNull(),
+  macAddress: text("mac_address").notNull(),
+  vendor: text("vendor"),
+  hostname: text("hostname"),
+  deviceType: text("device_type"),
+  firstSeen: timestamp("first_seen").defaultNow(),
+  lastSeen: timestamp("last_seen").defaultNow(),
+  description: text("description"),
+  lastUpdateMethod: text("last_update_method"), // 'arp', 'dhcp', 'snmp', 'lldp', 'manual'
+  isIdentified: boolean("is_identified").default(false),
+  identificationScore: integer("identification_score").default(0),
+  deviceData: jsonb("device_data"), // Lưu dữ liệu bổ sung
+  metadata: jsonb("metadata"), // Thông tin từ các nguồn khác nhau
+  isManaged: boolean("is_managed").default(false), // Thiết bị có được quản lý bởi MMCS không
+  managedDeviceId: integer("managed_device_id"), // ID tương ứng trong bảng devices nếu được quản lý
+});
+
+// Lưu thông tin về OUI (Organization Unique Identifier) cho nhận diện MAC Address
+export const macVendors = pgTable("mac_vendors", {
+  id: serial("id").primaryKey(),
+  oui: text("oui").notNull().unique(), // 6 ký tự đầu của MAC address (không có dấu ':')
+  vendor: text("vendor").notNull(),
+  lastUpdated: timestamp("last_updated").defaultNow(),
+});
+
+// Lưu lịch sử phát hiện thiết bị mạng
+export const deviceDiscoveryLog = pgTable("device_discovery_log", {
+  id: serial("id").primaryKey(),
+  deviceId: integer("device_id"), // ID từ bảng networkDevices
+  timestamp: timestamp("timestamp").defaultNow(),
+  method: text("method").notNull(), // 'arp', 'dhcp', 'snmp', 'scan', v.v.
+  sourceIp: text("source_ip"), // IP của thiết bị gửi thông tin phát hiện (ví dụ: router)
+  details: jsonb("details"), // Chi tiết về phát hiện
+});
+
+export const insertNetworkDeviceSchema = createInsertSchema(networkDevices).omit({
+  id: true,
+  firstSeen: true,
+  lastSeen: true,
+  identificationScore: true,
+});
+
+export const insertMacVendorSchema = createInsertSchema(macVendors).omit({
+  id: true,
+  lastUpdated: true,
+});
+
+export const insertDeviceDiscoveryLogSchema = createInsertSchema(deviceDiscoveryLog).omit({
+  id: true,
+  timestamp: true,
+});
+
 // Type definitions
 export type Device = typeof devices.$inferSelect;
 export type InsertDevice = z.infer<typeof insertDeviceSchema>;
@@ -261,6 +316,14 @@ export type InsertCapsmanAP = z.infer<typeof insertCapsmanAPSchema>;
 export type CapsmanClient = typeof capsmanClients.$inferSelect;
 export type InsertCapsmanClient = z.infer<typeof insertCapsmanClientSchema>;
 export type AlertSeverity = typeof alertSeverity[keyof typeof alertSeverity];
+
+// Network Discovery Types
+export type NetworkDevice = typeof networkDevices.$inferSelect;
+export type InsertNetworkDevice = z.infer<typeof insertNetworkDeviceSchema>;
+export type MacVendor = typeof macVendors.$inferSelect;
+export type InsertMacVendor = z.infer<typeof insertMacVendorSchema>;
+export type DeviceDiscoveryLog = typeof deviceDiscoveryLog.$inferSelect;
+export type InsertDeviceDiscoveryLog = z.infer<typeof insertDeviceDiscoveryLogSchema>;
 
 // User related types
 export type User = typeof users.$inferSelect;
