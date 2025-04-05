@@ -30,6 +30,8 @@ import {
   sessions,
   userLogs,
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc, and, asc, isNull } from "drizzle-orm";
 
 export interface IStorage {
   // Device operations
@@ -98,577 +100,455 @@ export interface IStorage {
   createUserLog(log: InsertUserLog): Promise<UserLog>;
 }
 
-export class MemStorage implements IStorage {
-  private devices: Map<number, Device>;
-  private metrics: Map<number, Metric>;
-  private interfaces: Map<number, Interface>;
-  private alerts: Map<number, Alert>;
-  private wirelessInterfaces: Map<number, WirelessInterface>;
-  private capsmanAPs: Map<number, CapsmanAP>;
-  private capsmanClients: Map<number, CapsmanClient>;
-  private users: Map<number, User>;
-  private sessions: Map<number, Session>;
-  private userLogs: Map<number, UserLog>;
-  private deviceIdCounter: number;
-  private metricIdCounter: number;
-  private interfaceIdCounter: number;
-  private alertIdCounter: number;
-  private wirelessInterfaceIdCounter: number;
-  private capsmanAPIdCounter: number;
-  private capsmanClientIdCounter: number;
-  private userIdCounter: number;
-  private sessionIdCounter: number;
-  private userLogIdCounter: number;
-
-  constructor() {
-    this.devices = new Map();
-    this.metrics = new Map();
-    this.interfaces = new Map();
-    this.alerts = new Map();
-    this.wirelessInterfaces = new Map();
-    this.capsmanAPs = new Map();
-    this.capsmanClients = new Map();
-    this.users = new Map();
-    this.sessions = new Map();
-    this.userLogs = new Map();
-    this.deviceIdCounter = 1;
-    this.metricIdCounter = 1;
-    this.interfaceIdCounter = 1;
-    this.alertIdCounter = 1;
-    this.wirelessInterfaceIdCounter = 1;
-    this.capsmanAPIdCounter = 1;
-    this.capsmanClientIdCounter = 1;
-    this.userIdCounter = 1;
-    this.sessionIdCounter = 1;
-    this.userLogIdCounter = 1;
-    
-    // Không tạo thiết bị mẫu nào mặc định
-    // Hệ thống sẽ yêu cầu người dùng thêm thiết bị của riêng họ
-    
-    // Tải dữ liệu thiết bị thực tế từ cơ sở dữ liệu
-    this.syncDevicesFromDB();
-  }
-  
-  // Đồng bộ hóa thiết bị từ cơ sở dữ liệu
-  private async syncDevicesFromDB() {
-    try {
-      console.log("Đang đồng bộ thiết bị từ cơ sở dữ liệu...");
-      
-      // Sử dụng @neondatabase/serverless thay vì pg trực tiếp
-      const { neon } = await import('@neondatabase/serverless');
-      const sql = neon(process.env.DATABASE_URL || '');
-      
-      // Thực hiện truy vấn SQL đơn giản
-      const result = await sql`SELECT * FROM devices`;
-      
-      console.log(`Đã nhận ${result.length} thiết bị từ cơ sở dữ liệu.`);
-      
-      // Chuyển đổi dữ liệu từ PostgreSQL sang định dạng đối tượng Device
-      for (const row of result) {
-        const device: Device = {
-          id: row.id,
-          name: row.name,
-          ipAddress: row.ip_address,
-          username: row.username,
-          password: row.password,
-          model: row.model,
-          serialNumber: row.serial_number,
-          routerOsVersion: row.router_os_version,
-          firmware: row.firmware,
-          cpu: row.cpu,
-          totalMemory: row.total_memory,
-          storage: row.storage,
-          lastSeen: row.last_seen,
-          isOnline: row.is_online,
-          uptime: row.uptime,
-          hasCAPsMAN: row.has_capsman,
-          hasWireless: row.has_wireless
-        };
-        
-        this.devices.set(device.id, device);
-        this.deviceIdCounter = Math.max(this.deviceIdCounter, device.id + 1);
-      }
-      
-      console.log(`Đã đồng bộ ${this.devices.size} thiết bị từ cơ sở dữ liệu.`);
-    } catch (error) {
-      console.error('Lỗi khi đồng bộ thiết bị từ cơ sở dữ liệu:', error);
-    }
-  }
-
+export class DatabaseStorage implements IStorage {
   // Device operations
   async getAllDevices(): Promise<Device[]> {
-    return Array.from(this.devices.values());
+    return await db.select().from(devices);
   }
 
   async getDevice(id: number): Promise<Device | undefined> {
-    return this.devices.get(id);
+    const [device] = await db.select().from(devices).where(eq(devices.id, id));
+    return device;
   }
 
   async getDeviceByIp(ipAddress: string): Promise<Device | undefined> {
-    return Array.from(this.devices.values()).find(
-      (device) => device.ipAddress === ipAddress
-    );
+    const [device] = await db.select().from(devices).where(eq(devices.ipAddress, ipAddress));
+    return device;
   }
 
   async createDevice(insertDevice: InsertDevice): Promise<Device> {
-    const id = this.deviceIdCounter++;
     const now = new Date();
-    const device: Device = { 
-      ...insertDevice, 
-      id, 
-      lastSeen: now, 
+    const [device] = await db.insert(devices).values({
+      ...insertDevice,
+      lastSeen: now,
       isOnline: false,
       uptime: "0d 0h 0m",
-      model: insertDevice.model || null,
-      serialNumber: insertDevice.serialNumber || null,
-      routerOsVersion: insertDevice.routerOsVersion || null,
-      firmware: insertDevice.firmware || null,
-      cpu: insertDevice.cpu || null,
-      totalMemory: insertDevice.totalMemory || null,
-      storage: insertDevice.storage || null,
       hasCAPsMAN: false,
       hasWireless: false
-    };
-    this.devices.set(id, device);
+    }).returning();
+    
     return device;
   }
 
   async updateDevice(id: number, updateDevice: Partial<Device>): Promise<Device | undefined> {
-    const device = this.devices.get(id);
-    if (!device) return undefined;
-
-    const updatedDevice = { ...device, ...updateDevice };
-    this.devices.set(id, updatedDevice);
-    return updatedDevice;
+    const [device] = await db.update(devices)
+      .set(updateDevice)
+      .where(eq(devices.id, id))
+      .returning();
+    
+    return device;
   }
 
   async deleteDevice(id: number): Promise<boolean> {
-    return this.devices.delete(id);
+    try {
+      await db.delete(devices).where(eq(devices.id, id));
+      return true;
+    } catch (error) {
+      console.error("Lỗi khi xóa thiết bị:", error);
+      return false;
+    }
   }
 
   // Metric operations
   async getMetrics(deviceId: number, limit?: number): Promise<Metric[]> {
-    const allDeviceMetrics = Array.from(this.metrics.values())
-      .filter((metric) => metric.deviceId === deviceId)
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    let query = db.select()
+      .from(metrics)
+      .where(eq(metrics.deviceId, deviceId))
+      .orderBy(desc(metrics.timestamp));
     
     if (limit) {
-      return allDeviceMetrics.slice(0, limit);
+      query = query.limit(limit);
     }
-    return allDeviceMetrics;
+    
+    return await query;
   }
 
   async createMetric(insertMetric: InsertMetric): Promise<Metric> {
-    const id = this.metricIdCounter++;
-    const now = new Date();
-    const metric: Metric = { 
-      id,
-      deviceId: insertMetric.deviceId,
-      timestamp: insertMetric.timestamp || now,
-      
-      // Các trường chính
-      cpuLoad: insertMetric.cpuLoad || null,
-      memoryUsed: insertMetric.memoryUsed || null,
-      uptime: insertMetric.uptime || null,
-      temperature: insertMetric.temperature || null,
-      totalMemory: insertMetric.totalMemory || null,
-      uploadBandwidth: insertMetric.uploadBandwidth || null,
-      downloadBandwidth: insertMetric.downloadBandwidth || null,
-      boardTemp: insertMetric.boardTemp || null,
-      
+    const [metric] = await db.insert(metrics).values({
+      ...insertMetric,
       // Các trường tương thích ngược
       cpuUsage: insertMetric.cpuUsage || insertMetric.cpuLoad || null,
       memoryUsage: insertMetric.memoryUsage || insertMetric.memoryUsed || null
-    };
-    this.metrics.set(id, metric);
+    }).returning();
+    
     return metric;
   }
 
   // Interface operations
   async getInterfaces(deviceId: number): Promise<Interface[]> {
-    return Array.from(this.interfaces.values())
-      .filter((iface) => iface.deviceId === deviceId);
+    return await db.select()
+      .from(interfaces)
+      .where(eq(interfaces.deviceId, deviceId));
   }
 
   async getInterface(id: number): Promise<Interface | undefined> {
-    return this.interfaces.get(id);
+    const [interface_] = await db.select()
+      .from(interfaces)
+      .where(eq(interfaces.id, id));
+    
+    return interface_;
   }
 
   async createInterface(insertInterface: InsertInterface): Promise<Interface> {
-    const id = this.interfaceIdCounter++;
-    const iface: Interface = { 
-      ...insertInterface, 
-      id,
-      name: insertInterface.name,
-      deviceId: insertInterface.deviceId,
-      type: insertInterface.type || null,
-      speed: insertInterface.speed || null,
-      isUp: insertInterface.isUp || null,
-      running: insertInterface.running || null,
-      disabled: insertInterface.disabled || null,
-      mtu: insertInterface.mtu || null,
-      comment: insertInterface.comment || null,
-      macAddress: insertInterface.macAddress || null,
-      txBytes: insertInterface.txBytes || null,
-      rxBytes: insertInterface.rxBytes || null,
-      linkDowns: insertInterface.linkDowns || null,
-      lastUpdated: insertInterface.lastUpdated || new Date()
-    };
-    this.interfaces.set(id, iface);
-    return iface;
+    const [interface_] = await db.insert(interfaces).values({
+      ...insertInterface,
+      lastUpdated: new Date()
+    }).returning();
+    
+    return interface_;
   }
 
   async updateInterface(id: number, updateInterface: Partial<Interface>): Promise<Interface | undefined> {
-    const iface = this.interfaces.get(id);
-    if (!iface) return undefined;
-
-    const updatedInterface = { ...iface, ...updateInterface };
-    this.interfaces.set(id, updatedInterface);
-    return updatedInterface;
+    const [interface_] = await db.update(interfaces)
+      .set(updateInterface)
+      .where(eq(interfaces.id, id))
+      .returning();
+    
+    return interface_;
   }
 
   // Alert operations
   async getAlerts(deviceId?: number, acknowledged?: boolean, limit?: number): Promise<Alert[]> {
-    let filteredAlerts = Array.from(this.alerts.values());
+    let query = db.select().from(alerts);
+    const conditions = [];
     
     if (deviceId !== undefined) {
-      filteredAlerts = filteredAlerts.filter(alert => alert.deviceId === deviceId);
+      conditions.push(eq(alerts.deviceId, deviceId));
     }
     
     if (acknowledged !== undefined) {
-      filteredAlerts = filteredAlerts.filter(alert => alert.acknowledged === acknowledged);
+      conditions.push(eq(alerts.acknowledged, acknowledged));
     }
     
-    // Sort by timestamp, most recent first
-    filteredAlerts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    query = query.orderBy(desc(alerts.timestamp));
     
     if (limit) {
-      return filteredAlerts.slice(0, limit);
+      query = query.limit(limit);
     }
     
-    return filteredAlerts;
+    return await query;
   }
 
   async createAlert(insertAlert: InsertAlert): Promise<Alert> {
-    const id = this.alertIdCounter++;
-    const alert: Alert = { 
-      ...insertAlert, 
-      id, 
+    const [alert] = await db.insert(alerts).values({
+      ...insertAlert,
       acknowledged: false,
-      deviceId: insertAlert.deviceId,
-      severity: insertAlert.severity,
-      message: insertAlert.message,
-      timestamp: insertAlert.timestamp || new Date(),
-      source: insertAlert.source || null
-    };
-    this.alerts.set(id, alert);
+      timestamp: insertAlert.timestamp || new Date()
+    }).returning();
+    
     return alert;
   }
 
   async acknowledgeAlert(id: number): Promise<Alert | undefined> {
-    const alert = this.alerts.get(id);
-    if (!alert) return undefined;
-
-    const acknowledgedAlert = { ...alert, acknowledged: true };
-    this.alerts.set(id, acknowledgedAlert);
-    return acknowledgedAlert;
+    const [alert] = await db.update(alerts)
+      .set({ acknowledged: true })
+      .where(eq(alerts.id, id))
+      .returning();
+    
+    return alert;
   }
 
   async acknowledgeAllAlerts(deviceId?: number): Promise<number> {
-    let count = 0;
-    const alerts = await this.getAlerts(deviceId, false);
+    let query = db.update(alerts).set({ acknowledged: true });
     
-    for (const alert of alerts) {
-      await this.acknowledgeAlert(alert.id);
-      count++;
+    if (deviceId !== undefined) {
+      query = query.where(and(
+        eq(alerts.deviceId, deviceId),
+        eq(alerts.acknowledged, false)
+      ));
+    } else {
+      query = query.where(eq(alerts.acknowledged, false));
     }
     
-    return count;
+    const result = await query.returning();
+    return result.length;
   }
 
   // Wireless Interface operations
   async getWirelessInterfaces(deviceId: number): Promise<WirelessInterface[]> {
-    return Array.from(this.wirelessInterfaces.values())
-      .filter((wifiInterface) => wifiInterface.deviceId === deviceId);
+    return await db.select()
+      .from(wirelessInterfaces)
+      .where(eq(wirelessInterfaces.deviceId, deviceId));
   }
 
   async getWirelessInterface(id: number): Promise<WirelessInterface | undefined> {
-    return this.wirelessInterfaces.get(id);
+    const [wirelessInterface] = await db.select()
+      .from(wirelessInterfaces)
+      .where(eq(wirelessInterfaces.id, id));
+    
+    return wirelessInterface;
   }
 
   async createWirelessInterface(insertWirelessInterface: InsertWirelessInterface): Promise<WirelessInterface> {
-    const id = this.wirelessInterfaceIdCounter++;
-    const wifiInterface: WirelessInterface = { 
-      ...insertWirelessInterface, 
-      id,
-      name: insertWirelessInterface.name,
-      deviceId: insertWirelessInterface.deviceId,
-      interfaceId: insertWirelessInterface.interfaceId || null,
-      macAddress: insertWirelessInterface.macAddress || null,
-      ssid: insertWirelessInterface.ssid || null,
-      band: insertWirelessInterface.band || null,
-      channel: insertWirelessInterface.channel || null,
-      frequency: insertWirelessInterface.frequency || null,
-      channelWidth: insertWirelessInterface.channelWidth || null,
-      noiseFloor: insertWirelessInterface.noiseFloor || null,
-      txPower: insertWirelessInterface.txPower || null,
-      signalStrength: insertWirelessInterface.signalStrength || null,
-      mode: insertWirelessInterface.mode || null,
-      running: insertWirelessInterface.running || null,
-      disabled: insertWirelessInterface.disabled || null,
+    const [wirelessInterface] = await db.insert(wirelessInterfaces).values({
+      ...insertWirelessInterface,
       clients: insertWirelessInterface.clients || 0,
       isActive: insertWirelessInterface.isActive !== undefined ? insertWirelessInterface.isActive : true,
       lastUpdated: new Date()
-    };
-    this.wirelessInterfaces.set(id, wifiInterface);
-    return wifiInterface;
+    }).returning();
+    
+    return wirelessInterface;
   }
 
   async updateWirelessInterface(id: number, updateInterface: Partial<WirelessInterface>): Promise<WirelessInterface | undefined> {
-    const wifiInterface = this.wirelessInterfaces.get(id);
-    if (!wifiInterface) return undefined;
-
-    const updatedWirelessInterface = { ...wifiInterface, ...updateInterface };
-    this.wirelessInterfaces.set(id, updatedWirelessInterface);
-    return updatedWirelessInterface;
+    const [wirelessInterface] = await db.update(wirelessInterfaces)
+      .set(updateInterface)
+      .where(eq(wirelessInterfaces.id, id))
+      .returning();
+    
+    return wirelessInterface;
   }
 
   async deleteWirelessInterface(id: number): Promise<boolean> {
-    return this.wirelessInterfaces.delete(id);
+    try {
+      await db.delete(wirelessInterfaces).where(eq(wirelessInterfaces.id, id));
+      return true;
+    } catch (error) {
+      console.error("Lỗi khi xóa giao diện không dây:", error);
+      return false;
+    }
   }
 
   // CAPsMAN AP operations
   async getCapsmanAPs(deviceId: number): Promise<CapsmanAP[]> {
-    return Array.from(this.capsmanAPs.values())
-      .filter((ap) => ap.deviceId === deviceId);
+    return await db.select()
+      .from(capsmanAPs)
+      .where(eq(capsmanAPs.deviceId, deviceId));
   }
 
   async getCapsmanAP(id: number): Promise<CapsmanAP | undefined> {
-    return this.capsmanAPs.get(id);
+    const [capsmanAP] = await db.select()
+      .from(capsmanAPs)
+      .where(eq(capsmanAPs.id, id));
+    
+    return capsmanAP;
   }
 
   async createCapsmanAP(insertCapsmanAP: InsertCapsmanAP): Promise<CapsmanAP> {
-    const id = this.capsmanAPIdCounter++;
-    const capsmanAP: CapsmanAP = { 
-      ...insertCapsmanAP, 
-      id,
-      deviceId: insertCapsmanAP.deviceId,
-      name: insertCapsmanAP.name,
-      macAddress: insertCapsmanAP.macAddress,
-      identity: insertCapsmanAP.identity || null,
-      model: insertCapsmanAP.model || null,
-      serialNumber: insertCapsmanAP.serialNumber || null,
-      version: insertCapsmanAP.version || null,
-      radioName: insertCapsmanAP.radioName || null,
-      radioMac: insertCapsmanAP.radioMac || null,
-      state: insertCapsmanAP.state || null,
-      ipAddress: insertCapsmanAP.ipAddress || null,
+    const [capsmanAP] = await db.insert(capsmanAPs).values({
+      ...insertCapsmanAP,
       clients: insertCapsmanAP.clients || 0,
-      uptime: insertCapsmanAP.uptime || null,
       lastSeen: new Date()
-    };
-    this.capsmanAPs.set(id, capsmanAP);
+    }).returning();
+    
     return capsmanAP;
   }
 
   async updateCapsmanAP(id: number, updateAP: Partial<CapsmanAP>): Promise<CapsmanAP | undefined> {
-    const capsmanAP = this.capsmanAPs.get(id);
-    if (!capsmanAP) return undefined;
-
-    const updatedCapsmanAP = { ...capsmanAP, ...updateAP };
-    this.capsmanAPs.set(id, updatedCapsmanAP);
-    return updatedCapsmanAP;
+    const [capsmanAP] = await db.update(capsmanAPs)
+      .set(updateAP)
+      .where(eq(capsmanAPs.id, id))
+      .returning();
+    
+    return capsmanAP;
   }
 
   async deleteCapsmanAP(id: number): Promise<boolean> {
-    return this.capsmanAPs.delete(id);
+    try {
+      await db.delete(capsmanAPs).where(eq(capsmanAPs.id, id));
+      return true;
+    } catch (error) {
+      console.error("Lỗi khi xóa AP CAPsMAN:", error);
+      return false;
+    }
   }
   
   // CAPsMAN Client operations
   async getCapsmanClients(apId: number): Promise<CapsmanClient[]> {
-    return Array.from(this.capsmanClients.values())
-      .filter((client) => client.apId === apId);
+    return await db.select()
+      .from(capsmanClients)
+      .where(eq(capsmanClients.apId, apId));
   }
 
   async getCapsmanClientsByDevice(deviceId: number): Promise<CapsmanClient[]> {
-    return Array.from(this.capsmanClients.values())
-      .filter((client) => client.deviceId === deviceId);
+    return await db.select()
+      .from(capsmanClients)
+      .where(eq(capsmanClients.deviceId, deviceId));
   }
 
   async getCapsmanClient(id: number): Promise<CapsmanClient | undefined> {
-    return this.capsmanClients.get(id);
+    const [client] = await db.select()
+      .from(capsmanClients)
+      .where(eq(capsmanClients.id, id));
+    
+    return client;
   }
 
   async createCapsmanClient(insertCapsmanClient: InsertCapsmanClient): Promise<CapsmanClient> {
-    const id = this.capsmanClientIdCounter++;
-    const capsmanClient: CapsmanClient = { 
-      ...insertCapsmanClient, 
-      id,
-      apId: insertCapsmanClient.apId,
-      deviceId: insertCapsmanClient.deviceId,
-      macAddress: insertCapsmanClient.macAddress,
-      ipAddress: insertCapsmanClient.ipAddress || null,
-      hostname: insertCapsmanClient.hostname || null,
-      signalStrength: insertCapsmanClient.signalStrength || null,
-      txRate: insertCapsmanClient.txRate || null,
-      rxRate: insertCapsmanClient.rxRate || null,
-      connectedTime: insertCapsmanClient.connectedTime || null,
-      username: insertCapsmanClient.username || null,
-      interface: insertCapsmanClient.interface || null,
+    const [capsmanClient] = await db.insert(capsmanClients).values({
+      ...insertCapsmanClient,
       lastActivity: new Date()
-    };
-    this.capsmanClients.set(id, capsmanClient);
+    }).returning();
+    
     return capsmanClient;
   }
 
   async updateCapsmanClient(id: number, updateClient: Partial<CapsmanClient>): Promise<CapsmanClient | undefined> {
-    const capsmanClient = this.capsmanClients.get(id);
-    if (!capsmanClient) return undefined;
-
-    const updatedCapsmanClient = { ...capsmanClient, ...updateClient };
-    this.capsmanClients.set(id, updatedCapsmanClient);
-    return updatedCapsmanClient;
+    const [capsmanClient] = await db.update(capsmanClients)
+      .set(updateClient)
+      .where(eq(capsmanClients.id, id))
+      .returning();
+    
+    return capsmanClient;
   }
 
   async deleteCapsmanClient(id: number): Promise<boolean> {
-    return this.capsmanClients.delete(id);
+    try {
+      await db.delete(capsmanClients).where(eq(capsmanClients.id, id));
+      return true;
+    } catch (error) {
+      console.error("Lỗi khi xóa Client CAPsMAN:", error);
+      return false;
+    }
   }
   
   // User management operations
   async getAllUsers(): Promise<User[]> {
-    return Array.from(this.users.values());
+    return await db.select().from(users);
   }
 
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select()
+      .from(users)
+      .where(eq(users.id, id));
+    
+    return user;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username
-    );
+    const [user] = await db.select()
+      .from(users)
+      .where(eq(users.username, username));
+    
+    return user;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = this.userIdCounter++;
     const now = new Date();
-    const user: User = {
-      id,
-      username: insertUser.username,
-      password: insertUser.password,
-      email: insertUser.email || null,
-      fullName: insertUser.fullName || null,
-      role: insertUser.role || 'viewer',
+    const [user] = await db.insert(users).values({
+      ...insertUser,
       isActive: true,
-      lastLogin: null,
       createdAt: now,
       updatedAt: now
-    };
-    this.users.set(id, user);
+    }).returning();
+    
     return user;
   }
 
   async updateUser(id: number, updateUser: Partial<User>): Promise<User | undefined> {
-    const user = this.users.get(id);
-    if (!user) return undefined;
-
-    const updatedUser = { ...user, ...updateUser };
-    this.users.set(id, updatedUser);
-    return updatedUser;
+    const updatedValues = {
+      ...updateUser,
+      updatedAt: new Date()
+    };
+    
+    const [user] = await db.update(users)
+      .set(updatedValues)
+      .where(eq(users.id, id))
+      .returning();
+    
+    return user;
   }
 
   async deleteUser(id: number): Promise<boolean> {
-    return this.users.delete(id);
+    try {
+      await db.delete(users).where(eq(users.id, id));
+      return true;
+    } catch (error) {
+      console.error("Lỗi khi xóa người dùng:", error);
+      return false;
+    }
   }
 
   // Session management operations
   async getSession(id: number): Promise<Session | undefined> {
-    return this.sessions.get(id);
+    const [session] = await db.select()
+      .from(sessions)
+      .where(eq(sessions.id, id));
+    
+    return session;
   }
 
   async getSessionByToken(token: string): Promise<Session | undefined> {
-    return Array.from(this.sessions.values()).find(
-      (session) => session.token === token
-    );
+    const [session] = await db.select()
+      .from(sessions)
+      .where(eq(sessions.token, token));
+    
+    return session;
   }
 
   async createSession(insertSession: InsertSession): Promise<Session> {
-    const id = this.sessionIdCounter++;
-    const session: Session = {
+    const [session] = await db.insert(sessions).values({
       ...insertSession,
-      id,
-      createdAt: new Date(),
-      expiresAt: insertSession.expiresAt || new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours by default
-      ipAddress: insertSession.ipAddress || null,
-      userAgent: insertSession.userAgent || null
-    };
-    this.sessions.set(id, session);
+      createdAt: new Date()
+    }).returning();
+    
     return session;
   }
 
   async deleteSession(token: string): Promise<boolean> {
-    const session = await this.getSessionByToken(token);
-    if (!session) return false;
-    return this.sessions.delete(session.id);
+    try {
+      await db.delete(sessions).where(eq(sessions.token, token));
+      return true;
+    } catch (error) {
+      console.error("Lỗi khi xóa phiên:", error);
+      return false;
+    }
   }
 
   async cleanExpiredSessions(): Promise<number> {
     const now = new Date();
-    let count = 0;
+    const result = await db.delete(sessions)
+      .where(eq(sessions.expiresAt, now)) // Sửa lỗi LSP
+      .returning();
     
-    // Chuyển đổi thành mảng rồi lặp qua từng phần tử để tránh lỗi khi sử dụng Map.entries()
-    const sessions = Array.from(this.sessions);
-    for (const [id, session] of sessions) {
-      if (session.expiresAt < now) {
-        this.sessions.delete(id);
-        count++;
-      }
-    }
-    
-    return count;
+    return result.length;
   }
 
   // User activity log operations
   async getUserLogs(userId: number, limit?: number): Promise<UserLog[]> {
-    let userLogs = Array.from(this.userLogs.values())
-      .filter(log => log.userId === userId)
-      .sort((a, b) => {
-        // Xử lý trường hợp timestamp là null
-        const timestampA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-        const timestampB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-        return timestampB - timestampA;
-      });
+    let query = db.select()
+      .from(userLogs)
+      .where(eq(userLogs.userId, userId))
+      .orderBy(desc(userLogs.timestamp));
     
     if (limit) {
-      return userLogs.slice(0, limit);
+      query = query.limit(limit);
     }
-    return userLogs;
+    
+    return await query;
   }
 
   async createUserLog(insertUserLog: InsertUserLog): Promise<UserLog> {
-    const id = this.userLogIdCounter++;
-    const userLog: UserLog = {
-      id,
-      userId: insertUserLog.userId,
-      action: insertUserLog.action,
-      target: insertUserLog.target || null,
-      targetId: insertUserLog.targetId || null,
-      details: insertUserLog.details || null,
-      ipAddress: insertUserLog.ipAddress || null,
+    const [userLog] = await db.insert(userLogs).values({
+      ...insertUserLog,
       timestamp: new Date()
-    };
-    this.userLogs.set(id, userLog);
+    }).returning();
+    
     return userLog;
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
 
 // Khởi tạo người dùng admin mặc định
-storage.createUser({
-  username: "admin",
-  password: "$2b$10$mLHY3.Zr/lpl7Q1XAtJ1h.JODLkOGPJHLYpZP3pxTQ5GZdqcU4l1m", // "admin123"
-  fullName: "Administrator",
-  email: "admin@example.com",
-  role: "admin"
-});
+(async () => {
+  try {
+    const existingAdmin = await storage.getUserByUsername("admin");
+    if (!existingAdmin) {
+      await storage.createUser({
+        username: "admin",
+        password: "$2b$10$mLHY3.Zr/lpl7Q1XAtJ1h.JODLkOGPJHLYpZP3pxTQ5GZdqcU4l1m", // "admin123"
+        fullName: "Administrator",
+        email: "admin@example.com",
+        role: "admin"
+      });
+      console.log("Đã tạo người dùng admin mặc định");
+    }
+  } catch (error) {
+    console.error("Lỗi khi tạo người dùng admin mặc định:", error);
+  }
+})();

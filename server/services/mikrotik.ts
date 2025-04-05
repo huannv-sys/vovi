@@ -663,6 +663,13 @@ export class MikrotikService {
         const isDisabled = iface.disabled === 'true' || iface.disabled === true;
         
         if (existingInterface) {
+          // Hàm để chuyển đổi an toàn từ string sang number
+          const safeParseInt = (value: string | null | undefined, defaultValue = 0): number => {
+            if (!value) return defaultValue;
+            const parsed = parseInt(value, 10);
+            return isNaN(parsed) ? defaultValue : parsed;
+          }
+
           // Cập nhật interface
           await storage.updateInterface(existingInterface.id, {
             type: iface.type || 'unknown',
@@ -670,17 +677,17 @@ export class MikrotikService {
             comment: iface.comment || '',
             disabled: isDisabled,
             running: isRunning,
-            mtu: parseInt(iface.mtu || '1500', 10),
-            rxBytes: parseInt(iface['rx-byte'] || '0', 10),
-            txBytes: parseInt(iface['tx-byte'] || '0', 10),
+            mtu: safeParseInt(iface.mtu, 1500),
+            rxBytes: safeParseInt(iface['rx-byte']),
+            txBytes: safeParseInt(iface['tx-byte']),
             lastLinkUpTime: iface['last-link-up-time'] || null,
-            linkDowns: parseInt(iface['link-downs'] || '0', 10),
-            txPackets: parseInt(iface['tx-packets'] || '0', 10),
-            rxPackets: parseInt(iface['rx-packets'] || '0', 10),
-            txDrops: parseInt(iface['tx-drops'] || '0', 10),
-            rxDrops: parseInt(iface['rx-drops'] || '0', 10),
-            txErrors: parseInt(iface['tx-errors'] || '0', 10),
-            rxErrors: parseInt(iface['rx-errors'] || '0', 10)
+            linkDowns: safeParseInt(iface['link-downs']),
+            txPackets: safeParseInt(iface['tx-packets']),
+            rxPackets: safeParseInt(iface['rx-packets']),
+            txDrops: safeParseInt(iface['tx-drops']),
+            rxErrors: safeParseInt(iface['rx-errors']),
+            txErrors: safeParseInt(iface['tx-errors']),
+            rxDrops: safeParseInt(iface['rx-drops'])
           });
           
           // Tạo cảnh báo nếu interface down
@@ -693,6 +700,13 @@ export class MikrotikService {
             );
           }
         } else {
+          // Hàm để chuyển đổi an toàn từ string sang number
+          const safeParseInt = (value: string | null | undefined, defaultValue = 0): number => {
+            if (!value) return defaultValue;
+            const parsed = parseInt(value, 10);
+            return isNaN(parsed) ? defaultValue : parsed;
+          }
+
           // Tạo interface mới
           const newInterface: InsertInterface = {
             deviceId,
@@ -702,17 +716,17 @@ export class MikrotikService {
             comment: iface.comment || '',
             disabled: isDisabled,
             running: isRunning,
-            mtu: parseInt(iface.mtu || '1500', 10),
-            rxBytes: parseInt(iface['rx-byte'] || '0', 10),
-            txBytes: parseInt(iface['tx-byte'] || '0', 10),
+            mtu: safeParseInt(iface.mtu, 1500),
+            rxBytes: safeParseInt(iface['rx-byte']),
+            txBytes: safeParseInt(iface['tx-byte']),
             lastLinkUpTime: iface['last-link-up-time'] || null,
-            linkDowns: parseInt(iface['link-downs'] || '0', 10),
-            txPackets: parseInt(iface['tx-packets'] || '0', 10),
-            rxPackets: parseInt(iface['rx-packets'] || '0', 10),
-            txDrops: parseInt(iface['tx-drops'] || '0', 10),
-            rxDrops: parseInt(iface['rx-drops'] || '0', 10),
-            txErrors: parseInt(iface['tx-errors'] || '0', 10),
-            rxErrors: parseInt(iface['rx-errors'] || '0', 10)
+            linkDowns: safeParseInt(iface['link-downs']),
+            txPackets: safeParseInt(iface['tx-packets']),
+            rxPackets: safeParseInt(iface['rx-packets']),
+            txDrops: safeParseInt(iface['tx-drops']),
+            rxErrors: safeParseInt(iface['rx-errors']),
+            txErrors: safeParseInt(iface['tx-errors']),
+            rxDrops: safeParseInt(iface['rx-drops'])
           };
           
           const createdInterface = await storage.createInterface(newInterface);
