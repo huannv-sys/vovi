@@ -372,16 +372,28 @@ export class MikrotikService {
         const resources = resourcesData[0];
         
         // Thu thập thông tin router-board để lấy serial number
-        const routerBoardData = await client.executeCommand('/system/routerboard/print');
-        const routerBoard = Array.isArray(routerBoardData) && routerBoardData.length > 0 
-          ? routerBoardData[0]
-          : null;
+        let routerBoard = null;
+        try {
+          const routerBoardData = await client.executeCommand('/system/routerboard/print');
+          routerBoard = Array.isArray(routerBoardData) && routerBoardData.length > 0 
+            ? routerBoardData[0]
+            : null;
+        } catch (err: any) {
+          console.warn(`Failed to get routerboard data: ${err.message}`);
+          // Tiếp tục xử lý mà không có dữ liệu routerboard
+        }
         
         // Thu thập identity
-        const identityData = await client.executeCommand('/system/identity/print');
-        const identity = Array.isArray(identityData) && identityData.length > 0 
-          ? identityData[0].name 
-          : device.name;
+        let identity = device.name;
+        try {
+          const identityData = await client.executeCommand('/system/identity/print');
+          if (Array.isArray(identityData) && identityData.length > 0) {
+            identity = identityData[0].name;
+          }
+        } catch (err: any) {
+          console.warn(`Failed to get device identity: ${err.message}`);
+          // Sử dụng tên thiết bị đã có sẵn
+        }
         
         // Cập nhật thông tin thiết bị
         await storage.updateDevice(deviceId, {
@@ -552,10 +564,20 @@ export class MikrotikService {
         }
         
         // Thu thập thông tin firewall rules
-        await this.collectFirewallRules(deviceId);
+        try {
+          await this.collectFirewallRules(deviceId);
+        } catch (err: any) {
+          console.warn(`Failed to collect firewall rules: ${err.message}`);
+          // Tiếp tục xử lý
+        }
         
         // Thu thập thông tin VPN connections
-        await this.collectVpnConnections(deviceId);
+        try {
+          await this.collectVpnConnections(deviceId);
+        } catch (err: any) {
+          console.warn(`Failed to collect VPN connections: ${err.message}`);
+          // Tiếp tục xử lý
+        }
         
         return true;
       } catch (error: any) {
