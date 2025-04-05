@@ -9,13 +9,13 @@ import {
   capsmanService, 
   schedulerService, 
   deviceInfoService,
-  discoveryService as deviceDiscoveryService,
-  deviceIdentificationService,
-  deviceClassifierService,
   trafficCollectorService,
   networkScannerService,
   clientManagementService
 } from "./services";
+import * as discoveryService from "./services/discovery";
+import * as deviceIdentificationService from "./services/device-identification";
+import * as deviceClassifierService from "./services/device-classifier";
 import { interfaceHealthService } from "./services/interface_health";
 import { 
   insertDeviceSchema, 
@@ -709,7 +709,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Lấy lịch sử phát hiện thiết bị
-      const history = await deviceDiscoveryService.getDeviceDiscoveryHistory(deviceId);
+      const history = await discoveryService.getDeviceDiscoveryHistory(deviceId);
       
       res.json({ device, history });
     } catch (error) {
@@ -721,7 +721,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.post("/network-devices", async (req: Request, res: Response) => {
     try {
       const validatedData = insertNetworkDeviceSchema.parse(req.body);
-      const device = await deviceDiscoveryService.detectDevice(
+      const device = await discoveryService.detectDevice(
         validatedData.ipAddress,
         validatedData.macAddress,
         'manual',
@@ -837,7 +837,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   router.post("/oui-database/update", async (_req: Request, res: Response) => {
     try {
-      const result = await deviceDiscoveryService.updateOuiDatabase();
+      const result = await discoveryService.updateOuiDatabase();
       if (result) {
         res.json({ message: "OUI database updated successfully" });
       } else {
@@ -852,7 +852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.get("/mac-vendors/:mac", async (req: Request, res: Response) => {
     try {
       const macAddress = req.params.mac;
-      const vendor = await deviceDiscoveryService.lookupVendor(macAddress);
+      const vendor = await discoveryService.lookupVendor(macAddress);
       
       if (vendor) {
         res.json({ macAddress, vendor });
@@ -964,7 +964,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   router.post("/network-devices/:id/collect-traffic", async (req: Request, res: Response) => {
     try {
       const deviceId = parseInt(req.params.id);
-      const result = await trafficCollectorService.collectTrafficByDeviceRole(deviceId);
+      const result = await collectAndBroadcastTraffic(deviceId);
       
       if (!result || !result.success) {
         return res.status(404).json({ 
@@ -1058,10 +1058,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Expose broadcast function globally
   (global as any).broadcastToTopic = broadcastToTopic;
   
-  // Subscribe to metric collection events
-  const originalCollectTrafficByDeviceRole = trafficCollectorService.collectTrafficByDeviceRole;
-  trafficCollectorService.collectTrafficByDeviceRole = async function(deviceId: number) {
-    const result = await originalCollectTrafficByDeviceRole.call(this, deviceId);
+  // Subscribe to metric collection events - use a different approach
+  // Instead of modifying the service method, we'll create a wrapper function
+  const collectAndBroadcastTraffic = async (deviceId: number) => {
+    const result = await trafficCollectorService.collectTrafficByDeviceRole(deviceId);
     
     // If collection was successful, broadcast to subscribed clients
     if (result && result.success) {
@@ -1070,8 +1070,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: 'traffic_update',
         deviceId,
         timestamp: new Date().toISOString(),
-        downloadBandwidth: result.data.trafficData[0]?.download || 0,
-        uploadBandwidth: result.data.trafficData[0]?.upload || 0,
+        downloadBandwidth: result.data?.trafficData?.[0]?.download || 0,
+        uploadBandwidth: result.data?.trafficData?.[0]?.upload || 0,
         method: result.method
       };
       
