@@ -205,14 +205,7 @@ const NetworkScanner: React.FC<NetworkScannerProps> = ({ onDeviceFound }) => {
           >
             {loading ? (
               <>
-                <Spinner
-                  as="span"
-                  animation="border"
-                  size="sm"
-                  role="status"
-                  aria-hidden="true"
-                  className="me-2"
-                />
+                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                 Đang quét...
               </>
             ) : (
