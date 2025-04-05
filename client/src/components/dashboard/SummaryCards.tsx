@@ -34,10 +34,10 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ deviceId }) => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
       {/* CPU Card */}
-      <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+      <div className="bg-amber-700 rounded-lg shadow-md p-4 border border-amber-500">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-gray-500">CPU Usage</h3>
-          <div className="text-amber-500">
+          <h3 className="text-sm font-bold text-white">CPU Usage</h3>
+          <div className="text-white bg-amber-600 p-1.5 rounded-md">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect>
               <rect x="9" y="9" width="6" height="6"></rect>
@@ -53,23 +53,23 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ deviceId }) => {
           </div>
         </div>
         <div className="flex items-end">
-          <div className="text-2xl font-bold text-neutral-dark">
+          <div className="text-3xl font-bold text-white">
             {latestMetric ? `${Math.round(latestMetric.cpuUsage || 0)}%` : 'N/A'}
           </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+        <div className="w-full bg-amber-800 rounded-full h-3 mt-3">
           <div 
-            className="bg-amber-500 h-2 rounded-full" 
+            className="bg-yellow-300 h-3 rounded-full" 
             style={{ width: `${latestMetric ? Math.round(latestMetric.cpuUsage || 0) : 0}%` }}
           ></div>
         </div>
       </div>
       
       {/* Memory Card */}
-      <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+      <div className="bg-blue-700 rounded-lg shadow-md p-4 border border-blue-500">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-gray-500">Memory Usage</h3>
-          <div className="text-primary">
+          <h3 className="text-sm font-bold text-white">Memory Usage</h3>
+          <div className="text-white bg-blue-600 p-1.5 rounded-md">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
               <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
@@ -79,13 +79,13 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ deviceId }) => {
           </div>
         </div>
         <div className="flex items-end">
-          <div className="text-2xl font-bold text-neutral-dark">
+          <div className="text-2xl font-bold text-white">
             {latestMetric ? `${formatBytes(latestMetric.memoryUsage)} / ${formatBytes(latestMetric.totalMemory)}` : 'N/A'}
           </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+        <div className="w-full bg-blue-800 rounded-full h-3 mt-3">
           <div 
-            className="bg-primary h-2 rounded-full" 
+            className="bg-blue-300 h-3 rounded-full" 
             style={{ 
               width: latestMetric && latestMetric.totalMemory ? 
                 `${Math.round((latestMetric.memoryUsage || 0) / latestMetric.totalMemory * 100)}%` : '0%' 
@@ -95,46 +95,46 @@ const SummaryCards: React.FC<SummaryCardsProps> = ({ deviceId }) => {
       </div>
       
       {/* Bandwidth Card */}
-      <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+      <div className="bg-emerald-700 rounded-lg shadow-md p-4 border border-emerald-500">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-gray-500">Bandwidth</h3>
-          <div className="text-teal-500">
+          <h3 className="text-sm font-bold text-white">Bandwidth</h3>
+          <div className="text-white bg-emerald-600 p-1.5 rounded-md">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
             </svg>
           </div>
         </div>
         <div className="flex items-end">
-          <div className="text-2xl font-bold text-neutral-dark">
+          <div className="text-2xl font-bold text-white">
             {latestMetric ? `${Math.round((latestMetric.uploadBandwidth || 0) + (latestMetric.downloadBandwidth || 0))} Mbps` : 'N/A'}
           </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+        <div className="w-full bg-emerald-800 rounded-full h-3 mt-3">
           <div 
-            className="bg-teal-500 h-2 rounded-full" 
+            className="bg-emerald-300 h-3 rounded-full" 
             style={{ width: latestMetric ? '58%' : '0%' }}
           ></div>
         </div>
       </div>
       
       {/* Temperature Card */}
-      <div className="bg-white rounded-lg shadow-sm p-4 border border-gray-200">
+      <div className="bg-red-700 rounded-lg shadow-md p-4 border border-red-500">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-medium text-gray-500">Temperature</h3>
-          <div className="text-red-500">
+          <h3 className="text-sm font-bold text-white">Temperature</h3>
+          <div className="text-white bg-red-600 p-1.5 rounded-md">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"></path>
             </svg>
           </div>
         </div>
         <div className="flex items-end">
-          <div className="text-2xl font-bold text-neutral-dark">
+          <div className="text-3xl font-bold text-white">
             {latestMetric ? `${Math.round(latestMetric.temperature || 0)}°C` : 'N/A'}
           </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
+        <div className="w-full bg-red-800 rounded-full h-3 mt-3">
           <div 
-            className="bg-red-500 h-2 rounded-full" 
+            className="bg-gradient-to-r from-yellow-300 to-red-400 h-3 rounded-full" 
             style={{ 
               width: latestMetric ? `${Math.min(100, Math.round((latestMetric.temperature || 0) / 80 * 100))}%` : '0%'
             }}
